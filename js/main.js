@@ -1828,3 +1828,153 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
           let semPts = 0;
 
           const rowsHtml = list.map((c, cIdx) => {
+            const pts = GRADE_POINTS[c.grade] !== undefined ? GRADE_POINTS[c.grade] : 0;
+            const coursePtsTotal = (c.credits * pts).toFixed(2);
+            if (c.grade !== "W") {
+              semHours += c.credits;
+              semPts += (c.credits * pts);
+              if (c.grade !== "F") semEarned += c.credits;
+            }
+
+            const isPass = c.grade !== "F" && c.grade !== "W";
+            const gradeBadge = c.grade === "W" 
+              ? '<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">W (انسحاب)</span>'
+              : c.grade === "F"
+                ? '<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-black">F (رسوب)</span>'
+                : `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-black">${c.grade}</span>`;
+
+            return `
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-2.5 text-center text-slate-400 font-mono">${cIdx + 1}</td>
+                <td class="p-2.5 font-bold text-slate-800">
+                  <div class="flex items-center gap-2">
+                    <span>${c.searchVal || "مقرر بدون اسم"}</span>
+                    ${c.isRetake ? '<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">إعادة/تحسين</span>' : ''}
+                  </div>
+                </td>
+                <td class="p-2.5 text-center font-bold">${c.credits}</td>
+                <td class="p-2.5 text-center">${gradeBadge}</td>
+                <td class="p-2.5 text-center font-mono">${c.grade === "W" ? "-" : pts.toFixed(2)}</td>
+                <td class="p-2.5 text-center font-mono font-bold text-slate-700">${c.grade === "W" ? "-" : coursePtsTotal}</td>
+                <td class="p-2.5 text-center">
+                  ${c.grade === "W" ? '<span class="text-slate-400">منسحب</span>' : isPass ? '<span class="text-emerald-700 font-bold">مجتاز ✓</span>' : '<span class="text-rose-600 font-bold">راسب ✕</span>'}
+                </td>
+                <td class="p-2.5 text-center no-print">
+                  <button onclick="deleteTranscriptCourse('${batchName}', '${sem.id}', ${cIdx})" class="text-slate-400 hover:text-rose-600 transition p-1 rounded-lg hover:bg-rose-50" title="حذف هذا المقرر من السجل">
+                    <i data-lucide="trash-2" class="w-4 h-4 inline"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          const semSgpa = semHours > 0 ? (semPts / semHours) : 0.00;
+
+          semestersHtml += `
+            <div class="p-4 border-b border-slate-100 last:border-b-0 space-y-2">
+              <div class="flex items-center justify-between">
+                <h5 class="text-xs font-black text-slate-800 flex items-center gap-2">
+                  <i data-lucide="book-check" class="w-4 h-4 text-emerald-600"></i>
+                  <span>${sem.name}</span>
+                  <span class="text-[10px] text-slate-500 font-normal">(${list.length} مقررات)</span>
+                </h5>
+                <div class="text-[11px] font-bold flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                  <span>الساعات: <strong>${semHours}</strong></span>
+                  <span class="text-slate-300">|</span>
+                  <span>المعدل الفصلي (SGPA): <strong class="text-emerald-700 font-black">${semSgpa.toFixed(2)}</strong></span>
+                </div>
+              </div>
+
+              <div class="overflow-x-auto rounded-xl border border-slate-200/70">
+                <table class="w-full text-xs text-right border-collapse">
+                  <thead>
+                    <tr class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                      <th class="p-2 text-center w-10">#</th>
+                      <th class="p-2">المقرر الدراسي</th>
+                      <th class="p-2 text-center w-20">الساعات</th>
+                      <th class="p-2 text-center w-24">التقدير</th>
+                      <th class="p-2 text-center w-24">النقاط</th>
+                      <th class="p-2 text-center w-24">المجموع</th>
+                      <th class="p-2 text-center w-24">الحالة</th>
+                      <th class="p-2 text-center w-14 no-print">حذف</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        });
+
+        yearCard.innerHTML = `
+          <div class="px-5 py-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-200/80 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">${bIndex + 1}</span>
+              <div>
+                <h4 class="font-black text-slate-900 text-sm">${batchName}</h4>
+                <p class="text-[10px] text-slate-500 font-medium">سجل المقررات والدرجات المنجزة خلال هذا العام الجامعي</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 text-xs bg-white px-3 py-1.5 rounded-xl border border-emerald-200 shadow-sm">
+              <span>الساعات المجتازة: <strong class="text-slate-900 font-extrabold">${yearEarned} ساعة</strong></span>
+              <span class="text-slate-300">|</span>
+              <span>المعدل السنوي: <strong class="text-emerald-700 font-black text-sm">${yearGpa.toFixed(2)}</strong></span>
+            </div>
+          </div>
+          <div>${semestersHtml}</div>
+        `;
+
+        container.appendChild(yearCard);
+      });
+
+      if (!hasAnyCoursesAcrossYears) {
+        container.innerHTML = `
+          <div class="p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 space-y-2">
+            <i data-lucide="folder-open" class="w-10 h-10 mx-auto text-slate-400"></i>
+            <h4 class="font-extrabold text-slate-800 text-sm">السجل الأكاديمي خالٍ حالياً</h4>
+            <p class="text-xs text-slate-400">قم بإضافة مقرراتك وتقديراتها في الحاسبة الأكاديمية وستظهر تلقائياً هنا في سجلك الشامل مقسمة لكل سنة وفصل.</p>
+          </div>
+        `;
+      }
+    }
+
+    function switchTab(tabId) {
+      document.getElementById("calculator-section").classList.toggle("hidden", tabId !== "calculator");
+      document.getElementById("suite-section").classList.toggle("hidden", tabId !== "suite");
+      document.getElementById("bylaws-section").classList.toggle("hidden", tabId !== "bylaws");
+      document.getElementById("tree-section").classList.toggle("hidden", tabId !== "tree");
+
+      const tabs = ['calculator', 'suite', 'bylaws', 'tree'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (btn) {
+          if (t === tabId) {
+            btn.className = "tab-btn px-5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-emerald-400 text-emerald-400 flex items-center gap-2 whitespace-nowrap transition";
+          } else {
+            btn.className = "tab-btn px-5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition";
+          }
+        }
+      });
+    }
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById("toastNotification");
+      document.getElementById("toastMessage").innerText = msg;
+      toast.classList.remove("translate-y-24", "opacity-0");
+      setTimeout(() => toast.classList.add("translate-y-24", "opacity-0"), 3000);
+    }
+
+    // ==============================================================
+    // INTERACTIVE VISUAL PREREQUISITES GRAPH & ROADMAP (الخريطة البصرية)
+    // ==============================================================
+
+    let treeViewMode = "graph"; // 'graph' or 'cards'
+
+    function switchTreeViewMode(mode) {
+      treeViewMode = mode;
+      const graphDiv = document.getElementById("coursesVisualGraphContainer");
+      const cardsDiv = document.getElementById("coursesTreeGrid");
+      const btnGraph = document.getElementById("btn-tree-graph");

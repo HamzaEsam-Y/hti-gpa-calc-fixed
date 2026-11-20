@@ -1763,9 +1763,7 @@ function checkPastCoursesRequirement() {
       priorBatches.forEach(b => { if (confirmedBatches.indexOf(b) === -1) confirmedBatches.push(b); });
       setConfirmedPastBatches(confirmedBatches);
 
-      if (currentViewYear !== batch) {
-        loadYearCoursesToTable(currentViewYear);
-      }
+      loadYearCoursesToTable(batch);
 
       closePastCoursesModal();
       handleBatchChange(false);

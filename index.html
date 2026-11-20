@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPA BugFree</title>
+  <!-- Tailwind CSS CDN & Production Configuration -->
+  <script>
+    tailwind = {
+      config: {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Cairo', 'Tajawal', 'sans-serif'],
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Cairo & Tajawal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Firebase App & Services (Compat SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { font-family: 'Cairo', 'Tajawal', sans-serif; }
+
+    .autocomplete-items {
+      position: absolute;
+      border: 1px solid #cbd5e1;
+      border-top: none;
+      z-index: 999;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 280px;
+      overflow-y: auto;
+      border-radius: 0 0 0.75rem 0.75rem;
+      background: white;
+      box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.15);
+    }
+    .autocomplete-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #f1f5f9;
+      transition: all 0.12s ease;
+    }
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+    .autocomplete-item:hover, .autocomplete-active {
+      background-color: #ecfdf5;
+      color: #065f46;
+    }
+    @keyframes savePulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.8; }
+    }
+    .saving-indicator {
+      animation: savePulse 1.5s infinite;
+    }
+
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #transcript-modal, #transcript-modal * {
+        visibility: visible !important;
+      }
+      #transcript-modal {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        background: white !important;
+        padding: 0 !important;
+        z-index: 99999 !important;
+      }
+      #transcript-modal > div {
+        max-height: none !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+      }
+      #transcriptContentBody {
+        overflow: visible !important;
+      }
+      button, .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- ============================================================== -->
+  <!-- 1. MANDATORY GOOGLE LOGIN OVERLAY -->
+  <!-- ============================================================== -->
+  <div id="login-overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl border border-slate-100 flex flex-col items-center">
+      
+      <div class="w-16 h-16 bg-emerald-500 text-slate-950 rounded-2xl flex items-center justify-center font-black text-3xl shadow-lg shadow-emerald-500/30 mb-4">
+        HTI
+      </div>
+
+      <h2 class="text-2xl font-black text-slate-900 mb-1">بوابة HTI الأكاديمية</h2>
+      <p class="text-xs font-bold text-emerald-600 mb-2">قسم علوم الحاسب - لائحة 134 ساعة</p>
+      <p class="text-slate-600 text-xs leading-relaxed mb-6">يرجى تسجيل الدخول بحساب Google للوصول إلى حاسبة المعدل التراكمي وتفعيل المزامنة السحابية لدرجاتك ☁️</p>
+      
+      <button onclick="signInWithGoogle()" class="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all duration-200 transform active:scale-98">
+        <svg class="w-5 h-5" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span>تسجيل الدخول باستخدام Google</span>
+      </button>
+      <button type="button" onclick="continueAsGuest()" class="mt-3 w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 font-bold py-2.5 px-4 rounded-xl border border-slate-200 transition text-xs">
+        <i data-lucide="user-check" class="w-4 h-4"></i>
+        <span>المتابعة كزائر (بدون تسجيل دخول / حفظ محلي على الجهاز) ⚡</span>
+      </button>
+
+      <span class="text-[10px] text-slate-400 mt-4 block">بياناتك الأكاديمية مشفرة ومحفوظة بأمان في خوادم Google Firebase</span>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 2. STUDENT PROFILE FORM MODAL (صفحة تسجيل وتعديل البيانات) -->
+  <!-- ============================================================== -->
+  <div id="profile-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 relative">
+      
+      <div class="flex items-center gap-3 border-b border-slate-100 pb-4 mb-5">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xl">
+          <i data-lucide="user-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-black text-slate-900">الملف الأكاديمي للطالب</h3>
+          <p class="text-xs text-slate-500">سجل بياناتك الجامعية مرة واحدة ويمكنك تعديلها لاحقاً بسهولة</p>
+        </div>
+      </div>
+
+      <form onsubmit="saveProfileData(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">اسم الطالب رباعي: <span class="text-rose-500 text-[10px] font-normal">(حروف فقط)</span></label>
+          <input type="text" id="modalStudentName" required placeholder="أدخل اسمك كما في الكارنيه..."
+                 oninput="this.value=this.value.replace(/[0-9]/g,''); validateProfileField(this, /^[^\d]+$/, 'الاسم يجب أن يحتوي على حروف فقط')"
+                 class="w-full text-sm font-semibold px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <p id="nameFieldError" class="hidden mt-1 text-[11px] text-rose-600 font-bold">⚠️ الاسم يجب أن يحتوي على حروف فقط، بدون أرقام.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الأكاديمي (كود المعهد): <span class="text-rose-500 text-[10px] font-normal">(أرقام فقط)</span></label>
+          <input type="text" id="modalStudentCode" required placeholder="مثال: 20230420" inputmode="numeric"
+                 oninput="this.value=this.value.replace(/[^0-9]/g,''); validateProfileField(this, /^\d+$/, 'الكود يجب أن يحتوي على أرقام فقط')"
+                 class="w-full text-sm font-mono font-semibold px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <p id="codeFieldError" class="hidden mt-1 text-[11px] text-rose-600 font-bold">⚠️ الكود الجامعي يجب أن يحتوي على أرقام فقط، بدون حروف.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">العام الجامعي: <span class="text-rose-500 text-[10px] font-normal">(أرقام وشرطة فقط)</span></label>
+            <input type="text" id="modalAcademicYear" required placeholder="مثال: 2024/2025" inputmode="numeric"
+                   oninput="this.value=this.value.replace(/[^0-9\/\-\s]/g,''); validateProfileField(this, /^[\d\/\-\s]+$/, 'السنة يجب أن تحتوي على أرقام فقط')"
+                   class="w-full text-sm font-semibold px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <p id="yearFieldError" class="hidden mt-1 text-[11px] text-rose-600 font-bold">⚠️ العام الجامعي يجب أن يحتوي على أرقام فقط.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">الفرقة الدراسية:</label>
+            <select id="modalStudentBatch" onchange="updateModalPriorWarningsVisibility(this.value)" class="w-full text-sm font-bold px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="الفرقة الأولى">الفرقة الأولى (مستجد)</option>
+              <option value="الفرقة الثانية">الفرقة الثانية</option>
+              <option value="الفرقة الثالثة">الفرقة الثالثة</option>
+              <option value="الفرقة الرابعة">الفرقة الرابعة (تخرج)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Academic Warnings Question in Profile Modal for Years 2 to 4 -->
+        <div id="modalPriorWarnSection" class="hidden p-3.5 bg-rose-50/80 rounded-xl border border-rose-200 space-y-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="shield-alert" class="w-4 h-4 text-rose-600 shrink-0"></i>
+            <label class="block text-xs font-bold text-slate-800">هل حصلت على أي إنذار أكاديمي في فصول سابقة (معدل أقل من 2.00)؟</label>
+          </div>
+          <div class="flex items-center gap-4 text-xs font-bold text-slate-700">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="modalPriorWarn" id="modalPriorWarnNo" value="no" checked onchange="toggleModalPriorWarn(false)" class="text-emerald-600 cursor-pointer">
+              <span>لا، لم أحصل على إنذار</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer text-rose-700">
+              <input type="radio" name="modalPriorWarn" id="modalPriorWarnYes" value="yes" onchange="toggleModalPriorWarn(true)" class="text-rose-600 cursor-pointer">
+              <span>نعم، حصلت على إنذار</span>
+            </label>
+          </div>
+          <div id="modalPriorWarnCountWrapper" class="hidden pt-1.5 flex items-center gap-2">
+            <label class="text-xs font-bold text-rose-900">كم عدد الإنذارات المتتالية السابقة؟</label>
+            <select id="modalPriorWarnCount" class="text-xs font-black px-3 py-1.5 bg-white border border-rose-300 rounded-lg text-rose-900">
+              <option value="1">إنذار واحد (1)</option>
+              <option value="2">إنذاران متتاليان (2)</option>
+              <option value="3">3 إنذارات متتالية (خطر فصل!)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-3 flex gap-3">
+          <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 rounded-xl shadow-md transition-all text-sm">
+            حفظ البيانات
+          </button>
+          <button type="button" id="closeProfileModalBtn" onclick="closeProfileModal()" class="hidden px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">
+            إلغاء
+          </button>
+        </div>
+
+        <button type="button" onclick="skipProfileSetup()" class="w-full flex items-center justify-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-800 text-slate-600 font-bold py-2.5 px-4 rounded-xl border border-dashed border-slate-300 transition text-xs">
+          <i data-lucide="zap" class="w-4 h-4"></i>
+          <span>المتابعة بدون بيانات (حساب سريع) ⚡</span>
+        </button>
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+          <button type="button" onclick="resetAllDataFactoryPrompt()" class="text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-rose-200">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <span>إعادة ضبط المصنع (حذف جميع البيانات والبدء من جديد)</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 3. ACADEMIC TRANSCRIPT MODAL (سجل المواد والتقديرات لكل سنة وترم) -->
+  <!-- ============================================================== -->
+  <div id="transcript-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 border-b border-emerald-500/20 shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg shadow-emerald-500/30">
+            <i data-lucide="scroll-text" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-black flex items-center gap-2">
+              <span>السجل الأكاديمي التراكمي الشامل (Official Transcript)</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono">134 Hrs</span>
+            </h3>
+            <p class="text-xs text-slate-300 font-medium">سجل المقررات والدرجات والمعدلات الفردية والتراكمية عبر كافة السنوات والفصول الدراسية</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="exportTranscriptToPDF()" class="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition transform active:scale-95">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>طباعة / حفظ PDF</span>
+          </button>
+          <button onclick="closeTranscriptModal()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition" title="إغلاق">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Student Summary Info Bar -->
+      <div class="bg-slate-50 border-b border-slate-200 p-4 px-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs shrink-0">
+        <div>
+          <span class="block text-slate-400 font-bold mb-0.5">اسم الطالب:</span>
+          <strong id="transcriptStudentName" class="text-slate-900 font-extrabold text-sm">-</strong>
+        </div>
+        <div>
+          <span class="block text-slate-400 font-bold mb-0.5">الرقم الأكاديمي:</span>
+          <strong id="transcriptStudentCode" class="text-slate-900 font-mono font-bold text-sm">-</strong>
+        </div>
+        <div>
+          <span class="block text-slate-400 font-bold mb-0.5">المعدل التراكمي العام (CGPA):</span>
+          <strong id="transcriptCgpa" class="text-emerald-700 font-black text-base">0.00</strong>
+        </div>
+        <div>
+          <span class="block text-slate-400 font-bold mb-0.5">إجمالي الساعات المكتسبة:</span>
+          <strong id="transcriptHours" class="text-slate-900 font-black text-sm">0 من 134 ساعة</strong>
+        </div>
+      </div>
+
+      <!-- Scrollable Transcript Content -->
+      <div id="transcriptContentBody" class="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+        <!-- Rendered dynamically by renderTranscript() -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="bg-slate-50 border-t border-slate-200 p-3 px-6 flex justify-between items-center text-[11px] text-slate-500 shrink-0">
+        <span>قسم علوم الحاسب - المعهد التكنولوجي العالي بالعاشر من رمضان</span>
+        <button onclick="closeTranscriptModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-lg transition text-xs">
+          إغلاق النافذة
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 4. PAST COURSES CHECKLIST MODAL (تحديد المقررات السابقة للفرق 2 و 3 و 4) -->
+  <!-- ============================================================== -->
+  <div id="past-courses-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white p-5 sm:p-6 border-b border-emerald-500/20 shrink-0">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg shadow-emerald-500/30">
+              <i data-lucide="check-check" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h3 class="text-base sm:text-lg font-black flex items-center gap-2">
+                <span>تحديد المقررات السابقة المجتازة بنجاح</span>
+                <span id="pastModalBatchBadge" class="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold">الفرقة الثانية</span>
+              </h3>
+              <p class="text-xs text-slate-300 font-medium">خطوة إلزامية: يرجى تحديد المواد التي أنجزتها بنجاح لتفعيل شجرة المتطلبات وحساب التخرج بدقة</p>
+            </div>
+          </div>
+
+          <button id="closePastCoursesModalBtn" onclick="closePastCoursesModal()" class="hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition" title="إغلاق النافذة">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Quick actions and counters -->
+        <div class="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="selectAllPastCourses(true)" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-xs flex items-center gap-1.5">
+              <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              <span>تحديد كل المقررات (اجتزت الكل بنجاح ✓)</span>
+            </button>
+            <button type="button" onclick="selectAllPastCourses(false)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition">
+              إلغاء تحديد الكل ✕
+            </button>
+          </div>
+
+          <div class="text-[11px] font-semibold text-emerald-300 flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+            <span>الساعات المحددة: <strong id="pastModalHoursCount" class="text-white font-black text-xs">0</strong> س</span>
+            <span class="text-slate-500">|</span>
+            <span>عدد المواد: <strong id="pastModalCoursesCount" class="text-white font-black text-xs">0</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- بانر تنبيه إجباري (يظهر فقط عند أول دخول) -->
+      <div id="pastModalMandatoryBanner" class="hidden px-4 sm:px-6 py-3 bg-amber-50 border-b border-amber-200 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl shrink-0">⚠️</span>
+          <div>
+            <p class="text-xs font-black text-amber-900">خطوة إجبارية — لا يمكن المتابعة قبل تحديد مقرراتك</p>
+            <p class="text-[11px] text-amber-800 font-medium mt-0.5">يرجى تحديد جميع المقررات التي اجتزتها بنجاح في السنوات السابقة، ثم اضغط "تأكيد وحفظ".</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search & Add Bar in Past Courses Modal -->
+      <div class="px-4 sm:px-6 py-3 bg-white border-b border-slate-200 shrink-0">
+        <div class="relative">
+          <input type="text" id="pastCoursesSearchInput" oninput="filterPastCoursesModal(this.value)" placeholder="🔍 ابحث بكود المادة أو اسمها (أو اكتب اسم مادة لإضافتها إذا لم تكن موجودة بالقائمة)..." class="w-full text-xs font-bold pr-9 pl-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-2.5"></i>
+        </div>
+        <div id="pastCoursesSearchAddBox" class="hidden mt-2 p-2.5 bg-emerald-50/80 border border-emerald-300 rounded-xl text-xs flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 overflow-hidden">
+            <span class="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0">+</span>
+            <div class="truncate">
+              <span class="font-extrabold text-slate-800 text-xs">مادة غير مدرجة بالقائمة: </span>
+              <span id="pastCoursesSearchCustomName" class="font-bold text-emerald-800 text-xs"></span>
+            </div>
+          </div>
+          <button type="button" onclick="addPastCustomCourse()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs shrink-0 flex items-center gap-1">
+            <span>+ إضافة كمادة سابقة مجتازة</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Checklist Body -->
+      <div id="pastCoursesListContainer" class="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 bg-slate-50/50">
+        <!-- Rendered dynamically by renderPastCoursesChecklist() -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 sm:p-5 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+        <div class="text-xs text-slate-500 text-center sm:text-right">
+          💡 يمكنك دائماً تعديل أي مقرر أو تقديره لاحقاً من سجل المقررات الأكاديمي.
+        </div>
+
+        <button type="button" onclick="savePastCoursesSelection()" class="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-600/20 transition-all transform active:scale-95">
+          <i data-lucide="check-circle" class="w-4 h-4"></i>
+          <span>تأكيد وحفظ المقررات المجتازة والانتقال لدراستك</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Main Navigation Header -->
+  <header class="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white shadow-xl sticky top-0 z-40 border-b border-emerald-500/20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-4">
+      
+      <div class="flex items-center space-x-3 space-x-reverse">
+        <div class="w-11 h-11 bg-emerald-500 text-slate-950 rounded-xl flex items-center justify-center font-extrabold text-2xl shadow-lg shadow-emerald-500/30">
+          HTI
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
+           HTI-GPA-Calc
+            <span class="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">لائحة 134 ساعة</span>
+          </h1>
+          <p class="text-[11px] text-slate-300 font-medium">قسم علوم الحاسب - المعهد التكنولوجي العالي بالعاشر من رمضان</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div id="autoSaveIndicator" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-900/60 border border-emerald-500/40 rounded-xl text-xs text-emerald-300 font-semibold shadow-inner">
+          <i data-lucide="cloud-check" id="syncIcon" class="w-4 h-4 text-emerald-400"></i>
+          <span id="syncText">حفظ تلقائي سحابي ومحلي</span>
+        </div>
+
+        <button onclick="openTranscriptModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md border border-emerald-400/40" title="عرض السجل الأكاديمي الشامل لجميع السنوات">
+          <i data-lucide="file-text" class="w-4 h-4 text-emerald-200"></i>
+          <span class="hidden sm:inline">السجل الأكاديمي (Transcript)</span>
+          <span class="sm:hidden">السجل الأكاديمي</span>
+        </button>
+
+        <!-- Backup & Restore Buttons -->
+        <div class="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+          <button onclick="exportBackupData()" class="p-1.5 rounded-lg text-slate-300 hover:text-emerald-400 hover:bg-slate-700 transition" title="تصدير نسخة احتياطية من درجاتك (JSON Backup)">
+            <i data-lucide="download" class="w-4 h-4"></i>
+          </button>
+          <button onclick="document.getElementById('backupFileInput').click()" class="p-1.5 rounded-lg text-slate-300 hover:text-emerald-400 hover:bg-slate-700 transition" title="استيراد نسخة احتياطية سابقة (Restore)">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+          </button>
+          <button onclick="resetAllDataFactoryPrompt()" class="p-1.5 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-slate-700 transition" title="إعادة ضبط السجل والمصنع (Reset All)">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          </button>
+          <input type="file" id="backupFileInput" class="hidden" accept=".json" onchange="handleRestoreBackup(event)">
+        </div>
+
+        <div id="authContainer">
+          <button id="googleSignInBtn" onclick="signInWithGoogle()" class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold transition shadow-md border border-slate-200">
+            <svg class="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>تسجيل الدخول بجوجل</span>
+          </button>
+
+          <div id="userProfileBox" class="hidden flex items-center gap-2.5 bg-slate-800/90 border border-slate-700 py-1 px-2.5 rounded-xl">
+            <img id="userAvatar" src="" alt="avatar" class="w-7 h-7 rounded-full border border-emerald-400 object-cover">
+            <div class="text-right">
+              <span id="userName" class="block text-xs font-bold text-white leading-tight">طالب</span>
+              <span class="block text-[10px] text-emerald-300 font-mono leading-none">بياناتك محفوظة سحابياً ☁️</span>
+            </div>
+            
+            <button onclick="openProfileModal()" class="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-slate-700/60 transition" title="تعديل الملف الشخصي">
+              <i data-lucide="user-cog" class="w-4 h-4"></i>
+            </button>
+
+            <button onclick="signOutUser()" class="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-700/60 transition" title="تسجيل الخروج">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sub Navigation Tabs -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex overflow-x-auto border-t border-slate-800/80 scrollbar-none">
+      <button onclick="switchTab('calculator')" id="tab-btn-calculator" class="tab-btn px-5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-emerald-400 text-emerald-400 flex items-center gap-2 whitespace-nowrap transition">
+        <i data-lucide="calculator" class="w-4 h-4"></i>
+        <span>الحاسبة الأكاديمية والفصول</span>
+      </button>
+      <button onclick="switchTab('suite')" id="tab-btn-suite" class="tab-btn px-5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition">
+        <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+        <span>الأدوات الأكاديمية الذكية (4 أدوات)</span>
+      </button>
+      <button onclick="switchTab('bylaws')" id="tab-btn-bylaws" class="tab-btn px-5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition">
+        <i data-lucide="book-open" class="w-4 h-4"></i>
+        <span>الدليل الشامل للائحة الأكاديمية</span>
+      </button>
+      <button onclick="switchTab('tree')" id="tab-btn-tree" class="tab-btn px-5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition">
+        <i data-lucide="git-merge" class="w-4 h-4 text-teal-400"></i>
+        <span>شجرة المواد المتطلبات (Prerequisites Tree)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Notification Banner Container with Undo Button -->
+  <div id="toastNotification" class="fixed bottom-5 left-5 z-50 transform translate-y-24 opacity-0 transition-all duration-300">
+    <div class="bg-slate-900 border border-emerald-500 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+      <div id="toastIcon" class="text-emerald-400"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
+      <p id="toastMessage" class="text-sm font-medium">تم الحفظ بنجاح!</p>
+      <button id="toastUndoBtn" onclick="undoLastDelete()" class="hidden text-xs font-extrabold text-amber-300 hover:text-amber-200 bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-400/40 transition">
+        تراجع (Undo) ↩️
+      </button>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- Onboarding Guidance -->
+    <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/90 rounded-2xl p-4 shadow-sm">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow">
+          <i data-lucide="compass" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1 text-xs">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <span>خريطة الاستخدام والإرشادات الأكاديمية للطالب</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900 font-bold">دليلك الأكاديمي</span>
+            </h3>
+            <span class="text-slate-500 font-medium">خطوات بسيطة لحساب ومتابعة سجلك دون تشتت:</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            <div class="bg-white/80 p-2.5 rounded-xl border border-emerald-200/60 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-emerald-500 text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">1</span>
+              <p class="text-slate-700"><strong>ملفك الشخصي:</strong> بياناتك محفوظة في البروفايل ويمكنك تعديلها من زر البروفايل بالأعلى.</p>
+            </div>
+            <div class="bg-white/80 p-2.5 rounded-xl border border-teal-200/60 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-teal-600 text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">2</span>
+              <p class="text-slate-700"><strong>أضف مقررات فصولك:</strong> ابحث بكود المادة أو اسمها (عربي أو إنجليزي)، وحدد التقدير المتوقع.</p>
+            </div>
+            <div class="bg-white/80 p-2.5 rounded-xl border border-blue-200/60 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">3</span>
+              <p class="text-slate-700"><strong>تابع معدلك وموقعك:</strong> راقب الـ CGPA الفوري وتجنب الإنذار عبر حزمة الأدوات الذكية.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SECTION 1: CALCULATOR & SEMESTERS (MAIN) -->
+    <!-- ========================================== -->
+    <div id="calculator-section" class="space-y-6">
+
+      <div class="hidden">
+        <span id="displayStudentName"></span>
+        <span id="displayStudentCode"></span>
+        <span id="displayAcademicYear"></span>
+        <span id="displayStudentBatch">الفرقة الأولى</span>
+      </div>
+
+      <!-- Year Progression Card -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+            <i data-lucide="milestone" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <span class="text-[11px] text-slate-400 font-bold block">المرحلة الأكاديمية الحالية:</span>
+            <span id="progressionSubtext" class="text-sm font-black text-slate-800">أنت الآن في مرحلة: <strong class="text-emerald-800">الفرقة الأولى</strong></span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          <button onclick="openTranscriptModal()" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold shadow-md transition-all">
+            <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i>
+            <span>سجل المقررات والدرجات (Transcript)</span>
+          </button>
+          
+          <button id="progressionBtn" onclick="progressToNextYear()" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs sm:text-sm font-extrabold shadow-md transition-all transform active:scale-95">
+            <i data-lucide="arrow-left-circle" class="w-4 h-4"></i>
+            <span id="progressionBtnText">هل أنهيت العام الدراسي؟ الانتقال إلى الفرقة الثانية</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Previous Academic Record (الفرقة 2 و 3 و 4) -->
+      <div id="prevRecordContainer" class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+        <div class="bg-gradient-to-r from-amber-50/90 via-emerald-50/50 to-slate-50 rounded-xl p-4 border border-amber-200 shadow-inner">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-sm shadow">
+                <i data-lucide="history" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                  <span>رصيد الساعات والمعدل التراكمي السابق (Pre-Accumulated Record)</span>
+                  <span id="batchPromptBadge" class="text-xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">الفرقة الثانية</span>
+                </h4>
+                <p class="text-xs text-slate-600 mt-0.5">💡 يبدأ بصفر عند دخولك لأول مرة، وإذا أدخلت أي بيانات سيقوم بحسابها وتسجيلها فوراً.</p>
+              </div>
+            </div>
+
+            <button type="button" onclick="openPastCoursesModal(true)" class="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-bold text-xs rounded-xl shadow-sm transition shrink-0">
+              <i data-lucide="check-square" class="w-4 h-4 text-emerald-200"></i>
+              <span>تحديد / تعديل المقررات السابقة المجتازة 📋</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">إجمالي الساعات المكتسبة السابقة (H_old):</label>
+              <input type="number" id="prevHoursInput" min="0" max="134" step="1" placeholder="0" oninput="handlePrevDataInput()" class="w-full text-sm font-bold px-3 py-2 bg-white border border-amber-300 rounded-lg">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">المعدل التراكمي السابق (Old CGPA):</label>
+              <input type="number" id="prevGpaInput" min="0.00" max="4.00" step="0.01" placeholder="0.00" oninput="handlePrevDataInput()" class="w-full text-sm font-bold px-3 py-2 bg-white border border-amber-300 rounded-lg">
+            </div>
+
+            <div class="flex items-center justify-between sm:col-span-2 lg:col-span-1 bg-white/90 p-3 rounded-lg border border-slate-200">
+              <div>
+                <span class="block text-[11px] font-bold text-slate-500">إجمالي النقاط السابقة المحسوبة:</span>
+                <span id="prevPointsDisplay" class="text-base font-black text-slate-800">0.00</span>
+              </div>
+              <div class="text-left">
+                <span id="prevGpaStatusPill" class="inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">جاهز للحساب</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Academic Warnings Section for Years 2 to 4 -->
+          <div class="mt-4 pt-3.5 border-t border-amber-200/80 bg-white/90 p-3.5 rounded-xl border border-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div class="flex items-start gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm shrink-0">
+                <i data-lucide="shield-alert" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h5 class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <span>الإنذارات الأكاديمية السابقة:</span>
+                  <span class="text-[10px] bg-rose-100 text-rose-800 px-2 py-0.2 rounded-full font-bold">المادة (21)</span>
+                </h5>
+                <p class="text-[11px] text-slate-600 mt-0.5">هل سبق لك الحصول على أي إنذار أكاديمي في سنوات وفصول سابقة (معدل أقل من 2.00)؟</p>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+                <input type="radio" name="priorWarnRadio" id="priorWarnRadioNo" value="no" checked onchange="handlePriorWarningToggle(false)" class="text-emerald-600 cursor-pointer">
+                <span>لا، لم أحصل على إنذار</span>
+              </label>
+
+              <label class="flex items-center gap-1.5 text-xs font-bold text-rose-700 cursor-pointer">
+                <input type="radio" name="priorWarnRadio" id="priorWarnRadioYes" value="yes" onchange="handlePriorWarningToggle(true)" class="text-rose-600 cursor-pointer">
+                <span>نعم، حصلت على إنذار</span>
+              </label>
+
+              <div id="priorWarnSelectWrapper" class="hidden flex items-center gap-2 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200">
+                <span class="text-xs font-bold text-rose-900">عدد الإنذارات السابقة:</span>
+                <select id="priorWarningsCountSelect" onchange="handlePriorWarningCountChange()" class="text-xs font-black px-2 py-1 bg-white border border-rose-300 rounded-md text-rose-900 focus:ring-2 focus:ring-rose-500">
+                  <option value="1">إنذار واحد (1)</option>
+                  <option value="2">إنذاران متتاليان (2)</option>
+                  <option value="3">3 إنذارات متتالية (وضع حرج!)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Standing & Warnings Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-gradient-to-br from-slate-900 to-emerald-950 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="text-xs font-bold text-emerald-300 uppercase tracking-wider block">المعدل التراكمي العام الشامل (CGPA)</span>
+              </div>
+              <span id="cgpaGradeLetter" class="text-xs font-extrabold px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">-</span>
+            </div>
+            <div class="mt-4 flex items-baseline gap-2">
+              <span id="cumulativeGpaDisplay" class="text-4xl sm:text-5xl font-black text-white">0.00</span>
+              <span class="text-sm font-semibold text-slate-400">/ 4.00</span>
+            </div>
+            <p id="cgpaEstimateText" class="text-xs text-slate-300 mt-2 font-medium">لم يتم تسجيل مقررات بعد</p>
+            <button type="button" onclick="toggleCalcExplanation()" class="mt-2 text-[11px] font-bold text-emerald-300 hover:text-emerald-200 underline underline-offset-4 decoration-dotted transition">
+              كيف حُسب هذا المعدل؟
+            </button>
+            <div id="calcExplanationBox" class="hidden mt-2 p-3 rounded-xl bg-slate-800/70 border border-emerald-500/20 text-[11px] leading-relaxed text-slate-200">
+              <span id="calcExplanationText"></span>
+            </div>
+          </div>
+          <div class="mt-5 pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+            <span class="text-slate-400">إجمالي الساعات المجتازة بنجاح:</span>
+            <span class="font-bold text-emerald-400"><span id="totalCreditsDisplay">0</span> من 134 ساعة</span>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-center">
+              <div>
+                <span class="text-xs font-bold text-slate-700 block">سجل الإنذارات الأكاديمية (المادة 21)</span>
+              </div>
+              <span id="warningBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">حالة ممتازة</span>
+            </div>
+            <div class="mt-4 grid grid-cols-4 gap-2">
+              <div id="warn-step-1" class="h-2.5 rounded-full bg-slate-200 transition-colors"></div>
+              <div id="warn-step-2" class="h-2.5 rounded-full bg-slate-200 transition-colors"></div>
+              <div id="warn-step-3" class="h-2.5 rounded-full bg-slate-200 transition-colors"></div>
+              <div id="warn-step-4" class="h-2.5 rounded-full bg-slate-200 transition-colors"></div>
+            </div>
+            <p id="warningDetailText" class="text-xs text-slate-600 mt-3 leading-relaxed">المعدل أعلى من 2.00 (الحد الآمن). لا توجد إنذارات أكاديمية.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span class="text-slate-500">الإنذارات المتتالية الحالية:</span>
+            <span id="consecutiveWarningsCount" class="font-extrabold text-slate-700">0 / 4</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SELECTIVE 3-SEMESTER SYSTEM -->
+      <div class="space-y-4">
+        
+        <!-- Year Switcher Bar (اختيار الفرقة المعروضة حالياً) -->
+       <!---->
+
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div>
+            <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+              <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
+              <span id="activeYearSemestersTitle">مقررات الفرقة الأولى (الفصول الثلاثة)</span>
+            </h3>
+          </div>
+          <div class="w-full sm:w-72 shrink-0">
+            <select id="activeSemesterSelector" onchange="switchActiveSemester(this.value)" class="w-full text-xs sm:text-sm font-bold px-3 py-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm cursor-pointer">
+              <option value="term_1">📚 الفصل الدراسي الأول (خريف)</option>
+              <option value="term_2">📚 الفصل الدراسي الثاني (ربيع)</option>
+              <option value="summer_term">☀️ الفصل الصيفي</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="semestersContainer" class="space-y-6"></div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- GRADUATION HOURS TRACKER BAR (شريط الساعات المتبقية للتخرج) -->
+      <!-- ============================================================== -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200/80">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md">
+              <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-extrabold text-slate-900">مؤشر التقدم نحو التخرج (متطلبات 134 ساعة - علوم الحاسب)</h4>
+              <p class="text-xs text-slate-500">تابع كم أنجزت وكم تبقى لك من الساعات المعتمدة للتخرج رسمياً.</p>
+            </div>
+          </div>
+          <div class="text-left font-mono text-xs font-bold bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-200">
+            النسبة المئوية: <span id="gradPercentText" class="text-emerald-700 font-black text-sm">0.0%</span>
+          </div>
+        </div>
+
+        <!-- Progress Bar Container -->
+        <div class="w-full bg-slate-100 rounded-full h-4 p-0.5 border border-slate-200 overflow-hidden shadow-inner mb-3">
+          <div id="gradProgressBar" class="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+        </div>
+
+        <!-- Details Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 text-center">
+          <div>
+            <span class="block text-slate-500 mb-0.5">الساعات المجتازة المكتسبة:</span>
+            <strong id="gradEarnedHours" class="text-slate-900 font-extrabold text-sm">0 ساعة</strong>
+          </div>
+          <div class="border-y sm:border-y-0 sm:border-x border-slate-200 py-2 sm:py-0">
+            <span class="block text-slate-500 mb-0.5">الساعات المتبقية للتخرج:</span>
+            <strong id="gradRemainingHours" class="text-emerald-700 font-black text-sm">134 ساعة</strong>
+          </div>
+          <div>
+            <span class="block text-slate-500 mb-0.5">الهدف النهائي:</span>
+            <strong class="text-slate-900 font-extrabold text-sm">134 ساعة معتمدة</strong>
+          </div>
+        </div>
+
+        <!-- Detailed Track & Hours Breakdown (إجباري + اختياري + مشروع تخرج) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 text-xs">
+          <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-200/80">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-extrabold text-blue-900">📘 المقررات الإجبارية:</span>
+              <span class="font-mono font-black text-blue-700"><span id="gradCompulsoryHours">0</span> / 104 س</span>
+            </div>
+            <div class="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
+              <div id="gradCompulsoryBar" class="bg-blue-600 h-full rounded-full transition-all" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-extrabold text-amber-900">📙 المقررات التخصصية الاختيارية:</span>
+              <span class="font-mono font-black text-amber-700"><span id="gradElectiveHours">0</span> / 24 س</span>
+            </div>
+            <div class="w-full bg-amber-100 rounded-full h-1.5 overflow-hidden">
+              <div id="gradElectiveBar" class="bg-amber-500 h-full rounded-full transition-all" style="width: 0%"></div>
+            </div>
+            <span id="gradElectiveRemText" class="text-[10px] text-amber-800 font-medium mt-1 block">المتبقي: 8 مواد اختيارية</span>
+          </div>
+
+          <div class="bg-purple-50/70 p-3 rounded-xl border border-purple-200/80">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-extrabold text-purple-900">🎓 مشروع التخرج (CS 498 & 499):</span>
+              <span class="font-mono font-black text-purple-700"><span id="gradProjectHours">0</span> / 6 س</span>
+            </div>
+            <span id="gradProjectStatus" class="text-[10px] text-purple-800 font-semibold block mt-1">يشترط إنجاز 94 ساعة للتسجيل (المادة 23)</span>
+          </div>
+        </div>
+
+        <!-- Mandatory Non-Credit Requirements (التدريب الصيفي 1 و 2) -->
+        <div class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <label class="flex items-start gap-2.5 p-2.5 rounded-xl border bg-slate-50 hover:bg-slate-100/80 cursor-pointer transition select-none" id="summerTrain1Box">
+            <input type="checkbox" id="checkSummerTrain1" onchange="toggleSummerTraining(1, this.checked)" class="w-4 h-4 mt-0.5 text-emerald-600 rounded cursor-pointer">
+            <div>
+              <strong class="text-slate-800 block text-xs">التدريب الصيفي الأول (120 ساعة تدريبية):</strong>
+              <span id="summerTrain1Notice" class="text-[10px] text-slate-500">شرط التسجيل: إتمام 30 ساعة معتمدة بنجاح (المادة 22).</span>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-2.5 p-2.5 rounded-xl border bg-slate-50 hover:bg-slate-100/80 cursor-pointer transition select-none" id="summerTrain2Box">
+            <input type="checkbox" id="checkSummerTrain2" onchange="toggleSummerTraining(2, this.checked)" class="w-4 h-4 mt-0.5 text-emerald-600 rounded cursor-pointer">
+            <div>
+              <strong class="text-slate-800 block text-xs">التدريب الصيفي الثاني (120 ساعة تدريبية):</strong>
+              <span id="summerTrain2Notice" class="text-[10px] text-slate-500">شرط التسجيل: إتمام 60 ساعة معتمدة بنجاح (المادة 22).</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SECTION 2: SMART ACADEMIC SUITE (4 TOOLS) -->
+    <!-- ========================================== -->
+    <div id="suite-section" class="hidden space-y-6">
+      <div class="bg-gradient-to-r from-emerald-800 to-slate-900 text-white rounded-2xl p-6 shadow-md">
+        <h2 class="text-lg sm:text-xl font-black flex items-center gap-2">
+          <i data-lucide="sparkles" class="w-6 h-6 text-amber-300"></i>
+          <span>حزمة أدوات التخطيط والتحليل الأكاديمي الذكي (4 أدوات)</span>
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-200 mt-1 max-w-3xl leading-relaxed">
+          هذه الأدوات مُصممة وفقاً لنصوص لائحة المعهد التكنولوجي العالي لمساعدتك على اتخاذ القرار الأكاديمي الصائب.
+        </p>
+      </div>
+
+      <!-- Tool 1: Target GPA Planner -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+            <i data-lucide="target" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800">1. حاسبة المعدل المطلوب للفصل الحالي (Target GPA Planner)</h3>
+            <p class="text-xs text-slate-500">متى أستخدمها؟ عندما يكون لديك معدل تراكمي وتريد معرفة: كم يجب أن أحصل هذا الفصل أصل لمعدل مستهدف؟</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">الساعات السابقة (H_old):</label>
+            <input type="number" id="t1_Hold" placeholder="مثال: 72" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">المعدل التراكمي الحالي (Old CGPA):</label>
+            <input type="number" step="0.01" id="t1_OldGpa" placeholder="مثال: 2.20" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">ساعات الفصل الحالي (H_new):</label>
+            <input type="number" id="t1_Hnew" placeholder="مثال: 18" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">المعدل المطلوب بلوغه (Target CGPA):</label>
+            <input type="number" step="0.01" id="t1_TargetGpa" placeholder="مثال: 4.00" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+        </div>
+
+        <button onclick="calculateTargetGpaTool()" class="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition">حساب المعدل الفصلي المطلوب</button>
+        <div id="t1_result" class="hidden mt-4 p-4 rounded-xl border text-sm font-medium"></div>
+      </div>
+
+      <!-- Tool 2: Academic Probation Shield -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800">2. درع الإنذار الأكاديمي وبقاء الطالب (Probation Shield)</h3>
+            <p class="text-xs text-slate-500">متى أستخدمها؟ إذا كان معدلك أقل من 2.00 وتريد معرفة الحد الأدنى من الدرجات للخروج من دائرة الخطر فوراً.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">الساعات السابقة (H_old):</label>
+            <input type="number" id="t2_Hold" placeholder="مثال: 45" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">المعدل التراكمي السابق (Old CGPA):</label>
+            <input type="number" step="0.01" id="t2_OldGpa" placeholder="مثال: 1.85" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">ساعات الفصل الحالي المسجلة (H_new):</label>
+            <input type="number" id="t2_Hnew" placeholder="مثال: 12" class="w-full text-sm font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+          </div>
+        </div>
+
+        <button onclick="calculateProbationShieldTool()" class="mt-4 px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow transition">فحص خط الأمان من الإنذار</button>
+        <div id="t2_result" class="hidden mt-4 p-4 rounded-xl border text-sm font-medium"></div>
+      </div>
+
+      <!-- Tool 3: Retake Simulator -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800">3. محاكي إعادة المواد والتحسين (Retake Simulator)</h3>
+            <p class="text-xs text-slate-500">متى أستخدمها؟ إذا كنت تعيد مادة بسبب الرسوب أو ترغب في تحسين تقديرك، لمعرفة أثرها الحقيقي على معدلك بعد تطبيق سقف اللائحة (مادة 20).</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">الساعات السابقة / المعدل الحالي:</label>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="number" id="t3_Hold" placeholder="ساعات: 90" class="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+              <input type="number" step="0.01" id="t3_OldGpa" placeholder="معدل: 2.20" class="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">سبب الإعادة وساعات المقرر:</label>
+            <div class="grid grid-cols-2 gap-2">
+              <select id="t3_Reason" class="w-full text-[11px] font-bold px-1.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800">
+                <option value="fail_1">رسوب (إعادة 1 - حد أقصى B+)</option>
+                <option value="fail_2">رسوب (إعادة 2 - حد أقصى C+)</option>
+                <option value="fail_3">رسوب (إعادة 3 فأكثر - حد أقصى D)</option>
+                <option value="improve" selected>تحسين تقدير</option>
+              </select>
+              <select id="t3_CourseHours" class="w-full text-xs font-bold px-2 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800">
+                <option value="3" selected>3 ساعات</option>
+                <option value="2">2 ساعة</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">التقدير القديم:</label>
+            <select id="t3_OldGrade" class="w-full text-xs font-bold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800">
+              <option value="4">A+ (4.00)</option>
+              <option value="3.7">A (3.70)</option>
+              <option value="3.4">A- (3.40)</option>
+              <option value="3.1">B+ (3.10)</option>
+              <option value="2.8">B (2.80)</option>
+              <option value="2.5">B- (2.50)</option>
+              <option value="2.2">C+ (2.20)</option>
+              <option value="2">C (2.00)</option>
+              <option value="1.7">C- (1.70)</option>
+              <option value="1.4">D+ (1.40)</option>
+              <option value="1">D (1.00)</option>
+              <option value="0" selected>F (0.00)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">التقدير المتوقع الجديد:</label>
+            <select id="t3_NewGrade" class="w-full text-xs font-bold px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800">
+              <option value="4" selected>A+ (4.00)</option>
+              <option value="3.7">A (3.70)</option>
+              <option value="3.4">A- (3.40)</option>
+              <option value="3.1">B+ (3.10)</option>
+              <option value="2.8">B (2.80)</option>
+              <option value="2.5">B- (2.50)</option>
+              <option value="2.2">C+ (2.20)</option>
+              <option value="2">C (2.00)</option>
+              <option value="1.7">C- (1.70)</option>
+              <option value="1.4">D+ (1.40)</option>
+              <option value="1">D (1.00)</option>
+              <option value="0">F (0.00)</option>
+            </select>
+          </div>
+        </div>
+
+        <button onclick="calculateRetakeTool()" class="mt-4 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow transition">محاكاة أثر الإعادة على المعدل الجديد</button>
+        <div id="t3_result" class="hidden mt-4 p-4 rounded-xl border text-sm font-medium"></div>
+      </div>
+
+      <!-- Tool 4: Best & Worst Case Planner -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+              <i data-lucide="compass" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-slate-800">4. حاسبة السيناريو الأفضل والأسوأ للفصل (Best & Worst Case Planner)</h3>
+              <p class="text-xs text-slate-500">أدخل مقررات الفصل الحالي مع تحديد "التقدير الحلو" (المتفائل) و"التقدير الوحش" (المتعثر) لكل مادة.</p>
+            </div>
+          </div>
+          <button onclick="addBestWorstCourseRow()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg shadow flex items-center gap-1">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i><span>إضافة مادة للسيناريو</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-visible mb-4">
+          <table class="semester-table w-full text-xs text-right border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <th class="p-2.5 w-4/12">اسم أو كود المقرر (عربي / إنجليزي)</th>
+                <th class="p-2.5 w-2/12 text-center">الساعات</th>
+                <th class="p-2.5 w-2/12 text-center text-emerald-700">التقدير الحلو (المتفائل)</th>
+                <th class="p-2.5 w-2/12 text-center text-rose-700">التقدير الوحش (المتعثر)</th>
+                <th class="p-2.5 w-1/12 text-center">حذف</th>
+              </tr>
+            </thead>
+            <tbody id="bestWorstCoursesTable" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">الساعات السابقة (H_old):</label>
+            <input type="number" id="t4_Hold" placeholder="مثال: 72" class="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">المعدل التراكمي السابق (Old CGPA):</label>
+            <input type="number" step="0.01" id="t4_OldGpa" placeholder="مثال: 2.20" class="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border rounded-lg">
+          </div>
+          <div class="flex items-end">
+            <button onclick="calculateBestWorstTool()" class="w-full py-2 bg-purple-700 hover:bg-purple-600 text-white text-xs font-extrabold rounded-lg shadow">حساب السيناريوهات</button>
+          </div>
+        </div>
+
+        <div id="t4_result" class="hidden"></div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SECTION 3: BYLAWS GUIDE (FULL COMPREHENSIVE) -->
+    <!-- ========================================== -->
+    <div id="bylaws-section" class="hidden space-y-6">
+      <div class="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-500/20">
+        <div class="flex items-center gap-3.5 mb-2">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg">
+            <i data-lucide="book-open" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h2 class="text-xl sm:text-2xl font-black">الدليل الشامل للائحة الأكاديمية (134 ساعة)</h2>
+            <p class="text-xs text-emerald-300 font-medium">قسم علوم الحاسب - المعهد التكنولوجي العالي بالعاشر من رمضان</p>
+          </div>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed mt-3">
+          يحتوي هذا الدليل على أهم الأبواب والمواد والضوابط المنظمة للعملية التعليمية، التسجيل، التقييم، الإنذارات، والتخرج، بشكل استرشادي مبسط.
+        </p>
+      </div>
+
+      <!-- تنبيه هام: القيم غير مؤكدة رسمياً -->
+      <div class="p-4 rounded-2xl bg-amber-50 border border-amber-300 flex items-start gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+        <div class="text-xs leading-relaxed text-amber-900">
+          <p class="font-black mb-1">تنبيه مهم: راجع اللائحة الرسمية قبل الاعتماد على النتائج</p>
+          <p>هذا الدليل ملخص استرشادي غير رسمي، وسلم نقاط التقديرات وسقوف الإعادة المستخدمة في الحاسبات موحدة داخلياً في الموقع لكنها <strong>غير مؤكدة مقابل اللائحة الرسمية للمعهد</strong>. قبل اتخاذ أي قرار أكاديمي (تسجيل، إعادة، تخرج) تأكد من القيم من اللائحة الرسمية أو شؤون الطلاب بالمعهد.</p>
+        </div>
+      </div>
+
+      <!-- Grid of Bylaw Chapters -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        
+        <!-- Chapter 1 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">1</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب الأول: الدرجة العلمية ونظام الفصول (المواد 1 - 3)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (1) - الدرجة الممنوحة:</strong> يمنح المعهد درجة البكالوريوس في علوم الحاسب بنظام الساعات المعتمدة بعد استيفاء 134 ساعة معتمدة بنجاح.</li>
+            <li><strong>المادة (2) - لغة التدريس:</strong> اللغة الإنجليزية هي لغة التدريس لجميع المقررات التخصصية والرياضيات والعلوم الأساسية، ويجوز تدريس بعض المقررات الإنسانية باللغة العربية.</li>
+            <li><strong>المادة (3) - الفصول الدراسية:</strong> تتكون السنة الأكاديمية من فصلين رئيسيين إجباريين (فصل الخريف وفصل الربيع) مدة كل منهما 15 أسبوعاً دراسياً، بالإضافة إلى فصل صيفي مكثف مدته 7-8 أسابيع.</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 2 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">2</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب الثاني: القبول والإرشاد والتسجيل (المواد 4 - 6)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (4) - القبول والمعادلات:</strong> يقبل الطلاب وفق شروط وزارة التعليم العالي، ويجوز للجنة المعادلات اعتماد مقررات درسها الطالب في معهد أو كلية مناظرة بحد أقصى للتحويل وفق الضوابط.</li>
+            <li><strong>المادة (5) - الإرشاد الأكاديمي:</strong> يخصص لكل طالب مرشد أكاديمي من أعضاء هيئة التدريس لمعاونته في اختيار المقررات، متابعة معدله الفصلي والتراكمي، واعتماد استمارة التسجيل.</li>
+            <li><strong>المادة (6) - القيد الإلكتروني:</strong> يتم تسجيل المقررات إلكترونياً قبل بداية كل فصل دراسي في المواعيد المحددة بالتقويم الأكاديمي للمعهد.</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 3 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">3</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب الثالث: الحذف والإضافة والانسحاب (المواد 7 - 9)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (7) - الحذف والإضافة:</strong> يحق للطالب تعديل تسجيله بحذف أو إضافة مقررات خلال الأسبوعين الأولين من الفصل الاعتيادي (أو الأسبوع الأول بالصيفي) دون أن يثبت المقرر المحذوف في سجله.</li>
+            <li><strong>المادة (8) - الانسحاب بتقدير (W):</strong> يجوز للطالب الانسحاب من مقرر دراسي حتى نهاية الأسبوع العاشر من الفصل الرئيسي ويسجل له تقدير (W - Withdrawn)، ولا تدخل ساعاته في حساب المعدل التراكمي.</li>
+            <li><strong>المادة (9) - وقف القيد والانقطاع:</strong> يجوز وقف قيد الطالب لعذر قهري يقبله مجلس إدارة المعهد لمدة لا تتجاوز 4 فصول دراسية طوال فترة الدراسة.</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 4 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">4</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب الرابع: العبء وساعات التسجيل (المادتان 13 و 14)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (13) - الحد الأدنى:</strong> الحد الأدنى للتسجيل في الفصل الاعتيادي هو 9 ساعات معتمدة، ولا يجوز التسجيل بأقل من ذلك إلا في فصل التخرج.</li>
+            <li><strong>المادة (14) - الساعات المتاحة للتسجيل وفق المعدل التراكمي (CGPA):</strong>
+              <ul class="list-disc list-inside space-y-1 mt-1 text-slate-700 pr-2">
+                <li>CGPA &ge; 3.00: يسمح بتسجيل حتى 21 ساعة معتمدة.</li>
+                <li>2.00 &le; CGPA &lt; 3.00: يسمح بتسجيل حتى 18 ساعة معتمدة (العبء الطبيعي).</li>
+                <li>1.50 &le; CGPA &lt; 2.00: عبء مخفض بـ 14 ساعة معتمدة لمعالجة التعثر.</li>
+                <li>CGPA &lt; 1.50: يحدد التسجيل بـ 12 ساعة معتمدة تحت إشراف مشدد.</li>
+              </ul>
+            </li>
+            <li><strong>الفصل الصيفي:</strong> يسجل الطالب حتى 6 ساعات معتمدة (ويجوز 9 ساعات فقط للطلاب المتوقع تخرجهم في الفصل الصيفي).</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 5 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">5</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب الخامس: نظام التقويم والحرمان (المادتان 10 و 11)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (10) - توزيع درجات المقرر:</strong> توزع درجة كل مقرر بنسبة (40% إلى 50%) لأعمال الفصل والامتحانات الدورية والاختبارات العملية والشفوية، ونسبة (50% إلى 60%) للامتحان التحريري النهائي.</li>
+            <li><strong>المادة (11) - نسبة الحرمان والحضور:</strong> يشترط لحضور الامتحان النهائي ألا تقل نسبة حضور الطالب عن 75% من المحاضرات والدروس العملية، وإذا تجاوزت نسبة الغياب 25% دون عذر مقبول يحرم الطالب من دخول الامتحان النهائي ويعطى تقدير محروم (FW) ويحتسب راسباً بنقاط 0.00.</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 6 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">6</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب السادس: إعادة المقررات والتحسين (المادة 20)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (20-أ) - سقف درجات الرسوب (F):</strong> في حال إعادة المقرر بسبب الرسوب:
+              <ul class="list-disc list-inside space-y-1 mt-1 text-slate-700 pr-2">
+                <li>في الإعادة الأولى: الحد الأقصى لاحتساب التقدير في المعدل هو (B+ أي 3.10).</li>
+                <li>في الإعادة الثانية: الحد الأقصى لاحتساب التقدير في المعدل هو (C+ أي 2.20).</li>
+                <li>في الإعادة الثالثة فأكثر: الحد الأقصى لاحتساب التقدير هو (D أي 1.00).</li>
+              </ul>
+            </li>
+            <li><strong>المادة (20-ب) - إعادة المقررات لغرض التحسين:</strong> يجوز للطالب إعادة أي مقرر نجح فيه بتقدير منخفض لرفع معدله التراكمي، ويمنح الطالب التقدير الذي حصل عليه في آخر إعادة كما هي، وتستبدل نقاط التقدير القديم بالنقاط الجديدة في حساب المعدل التراكمي العام.</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 7 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">7</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب السابع: الإنذار الأكاديمي والفصل (المادة 21)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (21-أ) - توجيه الإنذار:</strong> يوجه للطالب إنذار أكاديمي أول إذا انخفض معدله التراكمي (CGPA) عن 2.00 في نهاية أي فصل دراسي رئيسي، ويوضع تحت الملاحظة الأكاديمية.</li>
+            <li><strong>المادة (21-ب) - حالات الفصل الأكاديمي:</strong> يفصل الطالب نهائياً من المعهد إذا حصل على:
+              <ul class="list-disc list-inside space-y-1 mt-1 text-rose-700 font-semibold pr-2">
+                <li>أربعة (4) إنذارات أكاديمية متتالية.</li>
+                <li>أو ستة (6) إنذارات أكاديمية متفرقة طوال دراسته.</li>
+              </ul>
+            </li>
+            <li><strong>المادة (21-ج) - الفصل الاستثنائي:</strong> يجوز لمجلس إدارة المعهد منح الطالب فصلاً دراسياً استثنائياً أخيراً إذا كان متوقعاً تخرجه فيه أو حقق تحسناً ملموساً يتيح له رفع معدله فوق 2.00.</li>
+          </ul>
+        </div>
+
+        <!-- Chapter 8 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:border-emerald-300 transition">
+          <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">8</span>
+            <h3 class="text-sm font-extrabold text-slate-900">الباب الثامن: التدريب الصيفي والمشروع (المادتان 22 و 23)</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-600 leading-relaxed">
+            <li><strong>المادة (22) - التدريب الصيفي الميداني:</strong> يشترط لتخرج الطالب اجتياز فترتي تدريب صيفي (تدريب 1 وتدريب 2):
+              <ul class="list-disc list-inside space-y-1 mt-1 text-slate-700 pr-2">
+                <li>مدة كل تدريب 120 ساعة تدريبية وتطبيقية فعلية داخل المعهد أو في الشركات والمؤسسات المتخصصة.</li>
+                <li>يحتسب التدريب بـ (0 وحدات - Zero Units) بنظام النجاح والرسوب (Pass/Fail) ولا تدخل نقاطهما في حساب المعدل، لكنهما شرط إجباري للتخرج.</li>
+                <li>يشترط للتسجيل في التدريب الأول إتمام 30 ساعة معتمدة بنجاح على الأقل.</li>
+              </ul>
+            </li>
+            <li><strong>المادة (23) - مشروع التخرج:</strong> يتكون مشروع التخرج من جزأين متتاليين (CS 498 و CS 499) بإجمالي 6 ساعات معتمدة (3+3)، ويشترط للتسجيل فيه إنجاز 70% على الأقل من ساعات التخرج (أي إنهاء 94 ساعة معتمدة فأكثر بنجاح).</li>
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- Chapter 9 & Graduation Requirements -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+        <div class="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+          <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">9</span>
+          <h3 class="text-sm font-extrabold text-slate-900">الباب التاسع: متطلبات التخرج ومرتبة الشرف (المواد 24 - 28)</h3>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h4 class="text-xs font-bold text-emerald-800 mb-2">المادة (24) - متطلبات التخرج:</h4>
+            <ol class="list-decimal list-inside space-y-1 text-xs text-slate-600">
+              <li>اجتياز 134 ساعة معتمدة بنجاح وفق الخطة الدراسية.</li>
+              <li>الحصول على معدل تراكمي عام (CGPA) لا يقل عن 2.00 (مقبول).</li>
+              <li>اجتياز التدريب الصيفي الميداني (1) و (2) ومشروع التخرج.</li>
+            </ol>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h4 class="text-xs font-bold text-emerald-800 mb-2">المادة (25) - توزيع الـ 134 ساعة:</h4>
+            <ul class="space-y-1 text-xs text-slate-600">
+              <li>• متطلبات المعهد العامة (إنسانية ولغات): 16 ساعة.</li>
+              <li>• متطلبات العلوم الأساسية والرياضيات: 24 ساعة.</li>
+              <li>• متطلبات علوم الحاسب الإجبارية: 68 ساعة.</li>
+              <li>• المقررات التخصصية الاختيارية: 24 ساعة.</li>
+              <li>• مشروع التخرج الميداني: 6 ساعات.</li>
+            </ul>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h4 class="text-xs font-bold text-emerald-800 mb-2">المادة (28) - مرتبة الشرف:</h4>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              تمنح مرتبة الشرف للطالب الحاصل على معدل تخرج لا يقل عن 3.00 (جيد جداً فأعلى)، بشرط: ألا يكون قد رسب في أي مقرر دراسي طوال دراسته، وأن يكون قد أتم التخرج في المدة الطبيعية.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SECTION 4: COURSES PREREQUISITES TREE (شجرة المواد) -->
+    <!-- ========================================== -->
+    <div id="tree-section" class="hidden space-y-6">
+      <div class="bg-gradient-to-r from-teal-900 via-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-teal-500/20">
+        <div class="flex items-center gap-3.5 mb-2">
+          <div class="w-12 h-12 rounded-2xl bg-teal-500 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg">
+            <i data-lucide="git-merge" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h2 class="text-xl sm:text-2xl font-black">شجرة المواد ومتطلباتها الأكاديمية (Prerequisites Tree)</h2>
+            <p class="text-xs text-teal-300 font-medium">استعرض المادة لمعرفة "المتطلب السابق" لها و"ماذا تفتح" بعد نجاحك فيها</p>
+          </div>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed mt-3">
+          هذه الشجرة تبين لك بوضوح المسار الأكاديمي لمقررات علوم الحاسب (134 ساعة)، بحيث تعرف أي المواد تسبق الأخرى وأي المقررات المتقدمة تفتحها باجتيازك لمقرر معين.
+        </p>
+      </div>
+
+      <!-- View Switcher & Live Status Legend -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <button onclick="switchTreeViewMode('graph')" id="btn-tree-graph" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 bg-teal-600 text-white shadow-md shadow-teal-600/20">
+            <i data-lucide="git-fork" class="w-4 h-4"></i>
+            <span>خريطة المسار الأكاديمي المرئية (Visual Flow)</span>
+          </button>
+          <button onclick="switchTreeViewMode('cards')" id="btn-tree-cards" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200">
+            <i data-lucide="layout-grid" class="w-4 h-4"></i>
+            <span>بطاقات المقررات (Cards)</span>
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 text-xs font-bold">
+          <span class="flex items-center gap-1.5 text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> تم اجتيازها بنجاح</span>
+          <span class="flex items-center gap-1.5 text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> جاهزة للتسجيل الآن</span>
+          <span class="flex items-center gap-1.5 text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> مغلقة تتطلب متطلب</span>
+        </div>
+      </div>
+
+      <!-- Search Filter Bar -->
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="relative w-full sm:w-96">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none"></i>
+          <input type="text" id="treeSearchInput" oninput="renderCoursesTree(this.value)" placeholder="ابحث باسم المادة أو الكود (مثال: CS 101 أو هياكل البيانات)..." class="w-full text-xs font-semibold pr-10 pl-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none">
+        </div>
+        <div class="text-xs font-bold text-slate-500">
+          إجمالي المواد في اللائحة: <span id="totalTreeCount" class="text-teal-700 font-black">0</span> مقرر
+        </div>
+      </div>
+
+      <!-- 1. Visual Flow Graph View -->
+      <div id="coursesVisualGraphContainer" class="space-y-6"></div>
+
+      <!-- 2. Tree Cards Grid View -->
+      <div id="coursesTreeGrid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+  </main>
+
+  <!-- History State Dock (Undo / Redo) -->
+  <div class="history-dock no-print" title="سجل التراجع والاستعادة">
+    <button id="globalUndoBtn" type="button" onclick="historyManager.undo()" class="history-btn opacity-50 cursor-not-allowed" title="تراجع خطوة للخلف (Ctrl+Z)" disabled>
+      <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+      <span>تراجع</span>
+    </button>
+    <button id="globalRedoBtn" type="button" onclick="historyManager.redo()" class="history-btn opacity-50 cursor-not-allowed" title="إعادة خطوة للأمام (Ctrl+Y)" disabled>
+      <i data-lucide="redo-2" class="w-3.5 h-3.5"></i>
+      <span>إعادة</span>
+    </button>
+  </div>
+
+
+  <!-- ============================================================== -->
+  <!-- MODULAR JAVASCRIPT & ENGINES -->
+  <!-- ============================================================== -->
+  <script src="js/config.js"></script>
+  <script src="js/catalog.js"></script>
+  <script src="js/calculator.js"></script>
+  <script src="js/undo.js"></script>
+  <script src="js/smart_tools.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+          </html>

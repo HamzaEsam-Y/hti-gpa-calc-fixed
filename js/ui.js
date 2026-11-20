@@ -1770,4 +1770,4 @@ function exportTranscriptToPDF() {
     // البديل المباشر
     window.print();
   }
-        }
+}

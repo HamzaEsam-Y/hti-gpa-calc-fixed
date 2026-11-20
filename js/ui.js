@@ -60,6 +60,7 @@ function validateProfileField(input, regex, errorMsg) {
     }
 
     function handlePriorWarningToggle(hasWarn) {
+      priorWarnAnswered = true;
       const wrapper = document.getElementById("priorWarnSelectWrapper");
       if (wrapper) wrapper.classList.toggle("hidden", !hasWarn);
 
@@ -77,6 +78,7 @@ function validateProfileField(input, regex, errorMsg) {
     }
 
     function handlePriorWarningCountChange() {
+      priorWarnAnswered = true;
       const val = document.getElementById("priorWarningsCountSelect")?.value || "1";
       const modalVal = document.getElementById("modalPriorWarnCount");
       if (modalVal) modalVal.value = val;
@@ -165,20 +167,20 @@ function validateProfileField(input, regex, errorMsg) {
         document.getElementById("prevGpaInput").value = "";
       }
 
+      // حفظ الملف لفرقة غير الأولى يُعتبر إجابة على سؤال الإنذارات (القسم ظاهر داخل النافذة)
+      if (batch !== "الفرقة الأولى") priorWarnAnswered = true;
+
       closeProfileModal();
       handleBatchChange(false);
       autoSaveAll();
 
-      // لو الفرقة ≥ ثانية ومحتاج تحديد مقررات سابقة → افتح الـ modal إجبارياً فوراً
-      if (batch !== "الفرقة الأولى" && !hasConfiguredPastCourses) {
-        setTimeout(() => {
-          showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true);
-          openPastCoursesModal(false);
-        }, 300);
+      // بوابة أول دخول موحدة: تحديد المقررات السابقة إجبارياً عند الحاجة، ثم سؤال الإنذارات لو لم يُجب عنه
+      if (typeof runFirstEntryGate === "function") {
+        runFirstEntryGate();
       } else {
         checkPastCoursesRequirement();
-        showToast("تم حفظ وتحديث بيانات الملف الشخصي بنجاح! 🎉");
       }
+      showToast("تم حفظ وتحديث بيانات الملف الشخصي بنجاح! 🎉");
     }
 
     // تخطي بيانات الملف الشخصي: دخول سريع بدون اسم أو كود (يمكن إدخالها لاحقاً من زر الملف بالأعلى)
@@ -1773,4 +1775,4 @@ function exportTranscriptToPDF() {
     // البديل المباشر
     window.print();
   }
-                      }
+                  }

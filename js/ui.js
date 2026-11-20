@@ -235,6 +235,7 @@ function getCurrentTableCourses() {
               searchVal: document.getElementById(`search_${rowId}`)?.value || "",
               credits: parseInt(document.getElementById(`credits_${rowId}`)?.value) || 3,
               grade: document.getElementById(`grade_${rowId}`)?.value ?? "A",
+              gradeConfirmed: row.dataset.gradeConfirmed === "1",
               isRetake: document.getElementById(`retake_${rowId}`)?.checked || false
             });
           });
@@ -508,6 +509,7 @@ function getCurrentTableCourses() {
       const tr = document.createElement("tr");
       tr.id = rowId;
       tr.className = "hover:bg-slate-50/70 transition-colors";
+      if (courseData && courseData.gradeConfirmed) tr.dataset.gradeConfirmed = "1";
 
       const selectedCredits = courseData ? courseData.credits : 3;
       const selectedGrade = courseData ? courseData.grade : "A";
@@ -536,7 +538,7 @@ function getCurrentTableCourses() {
           </select>
         </td>
         <td class="p-2 text-center" data-label="التقدير المحقق">
-          <select id="grade_${rowId}" onchange="recalculateAll(); autoSaveAll();" class="text-xs font-extrabold px-3 py-2 border border-slate-300 bg-white rounded-lg text-emerald-800">
+          <select id="grade_${rowId}" onchange="this.closest('tr').dataset.gradeConfirmed='1'; recalculateAll(); autoSaveAll();" class="text-xs font-extrabold px-3 py-2 border border-slate-300 bg-white rounded-lg text-emerald-800">
             ${selectedGrade === '' ? '<option value="" selected>—</option>' : ''}${Object.keys(GRADE_POINTS).map(g => `<option value="${g}" ${selectedGrade === g ? 'selected' : ''}>${g} ${g === 'W' ? '(انسحاب بعذر)' : '(' + GRADE_POINTS[g].toFixed(2) + ')'}</option>`).join('')}
           </select>
         </td>

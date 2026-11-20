@@ -1095,3 +1095,736 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
       return `
         <div class="space-y-3.5">
           <div>
+            <p class="text-xs sm:text-sm font-semibold text-slate-800 leading-relaxed mb-1.5">
+              ${mainHeadline}
+            </p>
+            <div class="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-xl border ${bench.badge} mt-1">
+              <span>متوسط التقديرات المطلوب لمواد الفصل:</span>
+              <span class="font-black text-sm">${bench.title}</span>
+            </div>
+          </div>
+
+          <div class="space-y-2 pt-2 border-t border-slate-200/80">
+            <div class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <i data-lucide="check-square" class="w-4 h-4 text-emerald-600"></i>
+              <span>أمثلة وخيارات التقديرات التي تجيبها في مواد هذا الفصل (${totalHours} ساعة = ${numCourses} مقررات تقريباً):</span>
+            </div>
+            <div class="space-y-2">
+              ${plansHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function calculateTargetGpaTool() {
+      const hOld = parseFloat(document.getElementById("t1_Hold").value);
+      const oldGpa = parseFloat(document.getElementById("t1_OldGpa").value);
+      const hNew = parseFloat(document.getElementById("t1_Hnew").value);
+      const targetGpa = parseFloat(document.getElementById("t1_TargetGpa").value);
+      const resDiv = document.getElementById("t1_result");
+
+      if (isNaN(hOld) || isNaN(oldGpa) || isNaN(hNew) || isNaN(targetGpa) || hNew <= 0) {
+        resDiv.innerHTML = `<span class="text-rose-600 font-bold">يرجى إدخال جميع الحقول بصورة صحيحة.</span>`;
+        resDiv.className = "mt-4 p-4 rounded-xl border border-rose-200 bg-rose-50 text-sm";
+        resDiv.classList.remove("hidden");
+        return;
+      }
+
+      const requiredSgpa = ((targetGpa * (hOld + hNew)) - (oldGpa * hOld)) / hNew;
+      resDiv.classList.remove("hidden");
+
+      if (requiredSgpa > 4.00) {
+        resDiv.className = "mt-4 p-5 rounded-2xl border border-amber-300 bg-amber-50/90 text-amber-950 text-sm leading-relaxed shadow-sm";
+      } else if (requiredSgpa <= 0) {
+        resDiv.className = "mt-4 p-5 rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-950 text-sm leading-relaxed shadow-sm";
+      } else {
+        resDiv.className = "mt-4 p-5 rounded-2xl border border-emerald-300 bg-emerald-50/70 text-slate-800 text-sm leading-relaxed shadow-sm";
+      }
+
+      resDiv.innerHTML = generateSmartGradeGuidance(requiredSgpa, hNew, "target", hOld, oldGpa, targetGpa);
+      lucide.createIcons();
+    }
+
+    function calculateProbationShieldTool() {
+      const hOld = parseFloat(document.getElementById("t2_Hold").value);
+      const oldGpa = parseFloat(document.getElementById("t2_OldGpa").value);
+      const hNew = parseFloat(document.getElementById("t2_Hnew").value);
+      const resDiv = document.getElementById("t2_result");
+
+      if (isNaN(hOld) || isNaN(oldGpa) || isNaN(hNew) || hNew <= 0) {
+        resDiv.innerHTML = `<span class="text-rose-600 font-bold">يرجى إدخال البيانات بصورة صحيحة.</span>`;
+        resDiv.className = "mt-4 p-4 rounded-xl border border-rose-200 bg-rose-50 text-sm";
+        resDiv.classList.remove("hidden");
+        return;
+      }
+
+      const requiredSgpa = ((2.00 * (hOld + hNew)) - (oldGpa * hOld)) / hNew;
+      resDiv.classList.remove("hidden");
+
+      if (requiredSgpa > 4.00) {
+        resDiv.className = "mt-4 p-5 rounded-2xl border border-rose-300 bg-rose-50/90 text-rose-950 text-sm leading-relaxed shadow-sm";
+      } else if (requiredSgpa <= 0) {
+        resDiv.className = "mt-4 p-5 rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-950 text-sm leading-relaxed shadow-sm";
+      } else {
+        resDiv.className = "mt-4 p-5 rounded-2xl border border-amber-300 bg-amber-50/70 text-slate-800 text-sm leading-relaxed shadow-sm";
+      }
+
+      resDiv.innerHTML = generateSmartGradeGuidance(requiredSgpa, hNew, "probation", hOld, oldGpa, 2.00);
+      lucide.createIcons();
+    }
+
+    let saveTimeout = null;
+    function autoSaveAll() {
+      saveCurrentTableToState();
+
+      const hasPriorWarn = document.getElementById("priorWarnRadioYes")?.checked || false;
+      const priorWarnCount = parseInt(document.getElementById("priorWarningsCountSelect")?.value) || 1;
+
+      const studentData = {
+        hasConfiguredPastCourses: hasConfiguredPastCourses,
+        name: document.getElementById("displayStudentName").innerText,
+        code: document.getElementById("displayStudentCode").innerText,
+        year: document.getElementById("displayAcademicYear").innerText,
+        batch: document.getElementById("displayStudentBatch").innerText,
+        currentViewYear: currentViewYear,
+        prevHours: document.getElementById("prevHoursInput")?.value || "",
+        prevGpa: document.getElementById("prevGpaInput")?.value || "",
+        hasPriorWarnings: hasPriorWarn,
+        priorWarningsCount: priorWarnCount,
+        summerTraining: summerTrainingState,
+        allYearsCourses: allYearsCourses,
+        semesters: allYearsCourses[currentViewYear] || {},
+        updatedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem("hti_gpa_state_v2", JSON.stringify(studentData));
+
+      if (isFirebaseReady && currentUser) {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          db.collection("students").doc(currentUser.uid).set(studentData, { merge: true });
+        }, 1000);
+      }
+    }
+
+    async function loadUserDataFromFirestore(uid) {
+      if (!isFirebaseReady || !db) return;
+      try {
+        const doc = await db.collection("students").doc(uid).get();
+        if (doc.exists) {
+          const data = doc.data();
+          applyLoadedData(data);
+          checkProfileCompletion(data);
+        } else {
+          checkProfileCompletion(null);
+        }
+      } catch (err) {}
+    }
+
+    function loadAllStateFromStorage() {
+      const saved = localStorage.getItem("hti_gpa_state_v2");
+      if (!saved) {
+        return;
+      }
+      try {
+        const data = JSON.parse(saved);
+        applyLoadedData(data);
+      } catch (e) {}
+    }
+
+    function applyLoadedData(data) {
+      if (data.name) document.getElementById("displayStudentName").innerText = data.name;
+      if (data.code) document.getElementById("displayStudentCode").innerText = data.code;
+      if (data.year) document.getElementById("displayAcademicYear").innerText = data.year;
+      if (data.batch) {
+        document.getElementById("displayStudentBatch").innerText = data.batch;
+        document.getElementById("modalStudentBatch").value = data.batch;
+      }
+      if (data.prevHours !== undefined) document.getElementById("prevHoursInput").value = data.prevHours;
+      if (data.prevGpa !== undefined) document.getElementById("prevGpaInput").value = data.prevGpa;
+      if (data.hasConfiguredPastCourses !== undefined) hasConfiguredPastCourses = !!data.hasConfiguredPastCourses;
+
+      if (data.hasPriorWarnings !== undefined) {
+        const yesRadio = document.getElementById("priorWarnRadioYes");
+        const noRadio = document.getElementById("priorWarnRadioNo");
+        const modalYes = document.getElementById("modalPriorWarnYes");
+        const modalNo = document.getElementById("modalPriorWarnNo");
+        const wrapper = document.getElementById("priorWarnSelectWrapper");
+        const modalWrapper = document.getElementById("modalPriorWarnCountWrapper");
+
+        if (yesRadio && noRadio) {
+          yesRadio.checked = !!data.hasPriorWarnings;
+          noRadio.checked = !data.hasPriorWarnings;
+        }
+        if (modalYes && modalNo) {
+          modalYes.checked = !!data.hasPriorWarnings;
+          modalNo.checked = !data.hasPriorWarnings;
+        }
+        if (wrapper) wrapper.classList.toggle("hidden", !data.hasPriorWarnings);
+        if (modalWrapper) modalWrapper.classList.toggle("hidden", !data.hasPriorWarnings);
+      }
+
+      if (data.priorWarningsCount !== undefined) {
+        const select = document.getElementById("priorWarningsCountSelect");
+        const modalSelect = document.getElementById("modalPriorWarnCount");
+        if (select) select.value = data.priorWarningsCount.toString();
+        if (modalSelect) modalSelect.value = data.priorWarningsCount.toString();
+      }
+
+      if (data.summerTraining) {
+        summerTrainingState = data.summerTraining;
+        const cb1 = document.getElementById("checkSummerTrain1");
+        const cb2 = document.getElementById("checkSummerTrain2");
+        if (cb1) cb1.checked = !!summerTrainingState.train1;
+        if (cb2) cb2.checked = !!summerTrainingState.train2;
+      }
+
+      // استرجاع مقررات كل السنوات
+      if (data.allYearsCourses) {
+        allYearsCourses = data.allYearsCourses;
+      } else if (data.semesters) {
+        // ترقية من الإصدار القديم للحفاظ التام على المقررات السابقة
+        const b = data.batch || "الفرقة الأولى";
+        allYearsCourses = {
+          "الفرقة الأولى": { term_1: [], term_2: [], summer_term: [] },
+          "الفرقة الثانية": { term_1: [], term_2: [], summer_term: [] },
+          "الفرقة الثالثة": { term_1: [], term_2: [], summer_term: [] },
+          "الفرقة الرابعة": { term_1: [], term_2: [], summer_term: [] }
+        };
+        allYearsCourses[b] = data.semesters;
+      }
+
+      currentViewYear = data.currentViewYear || data.batch || "الفرقة الأولى";
+      handleBatchChange(false);
+      loadYearCoursesToTable(currentViewYear);
+      recalculateAll();
+    }
+
+    // ==============================================================
+    // ACADEMIC TRANSCRIPT MODAL & RENDERER (السجل الأكاديمي الشامل)
+    // ==============================================================
+
+    function openTranscriptModal() {
+      saveCurrentTableToState();
+      renderTranscript();
+      document.getElementById("transcript-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeTranscriptModal() {
+      document.getElementById("transcript-modal").classList.add("hidden");
+    }
+
+    function printTranscript() {
+      window.print();
+    }
+
+    // حذف مقرر فردي من السجل الأكاديمي (Transcript Item Delete)
+    function deleteTranscriptCourse(batchName, semId, courseIndex) {
+
+      if (!allYearsCourses[batchName] || !allYearsCourses[batchName][semId]) return;
+      const list = allYearsCourses[batchName][semId];
+      if (courseIndex < 0 || courseIndex >= list.length) return;
+
+      const course = list[courseIndex];
+      const courseTitle = course.searchVal ? course.searchVal.split('-')[0].trim() : 'المقرر';
+
+      if (!confirm(`هل أنت متأكد من رغبتك في حذف ${courseTitle} من سجل ${batchName}؟`)) {
+        return;
+      }
+
+      deletedCourseHistory.push({ semId, courseData: course });
+      list.splice(courseIndex, 1);
+
+      // إذا كانت الفرقة المحذوف منها هي المعروضة حالياً، إعادة تحميل الجدول
+      if (batchName === currentViewYear) {
+        loadYearCoursesToTable(currentViewYear);
+      }
+
+      recalculateAll();
+      autoSaveAll();
+      renderTranscript();
+      lucide.createIcons();
+
+      const undoBtn = document.getElementById("toastUndoBtn");
+      if (undoBtn) undoBtn.classList.remove("hidden");
+
+      showToast(`تم حذف المقرر (${courseTitle}) من السجل الأكاديمي بنجاح. 🗑️`);
+    }
+
+    // جدول توزيع المقررات القياسي للسنوات السابقة (Standard Curricular Schedule)
+    /* STANDARD_COURSE_SCHEDULE in catalog.js */
+
+    /* hasConfiguredPastCourses in config.js */
+
+    // فحص هل الطالب بحاجة لتحديد مقرراته السابقة إجبارياً
+    function checkPastCoursesRequirement() {
+      const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+      if (batch === "الفرقة الأولى") return;
+
+      if (!hasConfiguredPastCourses) {
+        // فحص ما إذا كانت السنوات السابقة تحتوي مقررات بالفعل
+        const batchIdx = ALL_BATCHES.indexOf(batch);
+        let hasCoursesRecorded = false;
+        for (let i = 0; i < batchIdx; i++) {
+          const b = ALL_BATCHES[i];
+          if (allYearsCourses[b]) {
+            SEMESTER_CONFIGS.forEach(s => {
+              if ((allYearsCourses[b][s.id] || []).length > 0) hasCoursesRecorded = true;
+            });
+          }
+        }
+
+        if (hasCoursesRecorded) {
+          hasConfiguredPastCourses = true;
+          return;
+        }
+
+        // إلزام الطالب بتحديد المقررات السابقة
+        openPastCoursesModal(false);
+      }
+    }
+
+    // فتح نافذة تحديد المقررات السابقة المجتازة
+    function openPastCoursesModal(isVoluntary = true) {
+      const modal = document.getElementById("past-courses-modal");
+      const closeBtn = document.getElementById("closePastCoursesModalBtn");
+      const badge = document.getElementById("pastModalBatchBadge");
+      const mandatoryBanner = document.getElementById("pastModalMandatoryBanner");
+      const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+
+      if (batch === "الفرقة الأولى") {
+        showToast("أنت في الفرقة الأولى (مستجد)، لا توجد سنوات سابقة لتسجيلها!");
+        return;
+      }
+
+      if (badge) badge.innerText = batch;
+
+      // وضع الإجبار: لا زر إغلاق + بانر تحذيري
+      const isMandatory = !isVoluntary && !hasConfiguredPastCourses;
+      if (closeBtn) {
+        closeBtn.classList.toggle("hidden", isMandatory);
+      }
+      if (mandatoryBanner) {
+        mandatoryBanner.classList.toggle("hidden", !isMandatory);
+      }
+
+      // منع إغلاق الـ overlay بالضغط خارج الـ modal في وضع الإجبار
+      modal.onclick = isMandatory ? (e) => {
+        if (e.target === modal) {
+          showToast("⚠️ يرجى تحديد مقرراتك السابقة أولاً ثم اضغط تأكيد وحفظ", true);
+        }
+      } : null;
+
+      renderPastCoursesChecklist(batch);
+      modal.classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closePastCoursesModal() {
+      // منع الإغلاق في وضع الإجبار
+      if (!hasConfiguredPastCourses) {
+        const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+        if (batch !== "الفرقة الأولى") {
+          showToast("⚠️ يرجى تحديد مقرراتك السابقة أولاً ثم اضغط تأكيد وحفظ", true);
+          return;
+        }
+      }
+      document.getElementById("past-courses-modal").classList.add("hidden");
+    }
+
+    // فلترة وبحث المقررات في نافذة المقررات السابقة
+    function filterPastCoursesModal(rawQuery) {
+      const addBox = document.getElementById("pastCoursesSearchAddBox");
+      const customNameSpan = document.getElementById("pastCoursesSearchCustomName");
+      const trimmed = (rawQuery || "").trim();
+      const norm = normalizeSearchText(trimmed);
+
+      const rows = document.querySelectorAll(".past-course-row");
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const searchData = normalizeSearchText(row.dataset.search || "");
+        if (!norm || searchData.includes(norm)) {
+          row.classList.remove("hidden");
+          visibleCount++;
+        } else {
+          row.classList.add("hidden");
+        }
+      });
+
+      // إخفاء/إظهار الـ sections بناءً على هل فيها نتائج ظاهرة
+      const sections = document.querySelectorAll("#pastCoursesListContainer > div");
+      sections.forEach(section => {
+        const visibleRows = section.querySelectorAll(".past-course-row:not(.hidden)");
+        section.style.display = visibleRows.length === 0 && norm ? "none" : "";
+      });
+
+      // إذا لم توجد نتائج وبحث الطالب عن نص معين، إتاحة إضافته فوراً كمادة سابقة
+      if (trimmed && visibleCount === 0) {
+        if (addBox && customNameSpan) {
+          customNameSpan.innerText = `"${trimmed}"`;
+          addBox.classList.remove("hidden");
+        }
+      } else {
+        if (addBox) addBox.classList.add("hidden");
+      }
+    }
+
+    // إضافة مادة سابقة مخصصة غير مدرجة بالقائمة
+    function addPastCustomCourse() {
+      const input = document.getElementById("pastCoursesSearchInput");
+      const rawName = input ? input.value.trim() : "";
+      if (!rawName) return;
+
+      const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الثانية";
+      const currentIdx = ALL_BATCHES.indexOf(batch);
+      const defaultBatch = currentIdx > 0 ? ALL_BATCHES[currentIdx - 1] : "الفرقة الأولى";
+
+      const code = extractCourseCode(rawName) || `CUSTOM-${Date.now().toString().slice(-4)}`;
+      const safeCode = code.replace(/\s+/g, '_');
+
+      let existing = COURSE_CATALOG.find(c => c.code.toUpperCase() === code.toUpperCase() || c.nameAr === rawName);
+      if (!existing) {
+        existing = {
+          code: code,
+          codeAr: code,
+          nameAr: rawName,
+          nameEn: rawName,
+          credits: 3,
+          prereq: "-",
+          type: "اختياري",
+          isCustom: true
+        };
+        COURSE_CATALOG.push(existing);
+        saveCustomCoursesToStorage();
+      }
+
+      const container = document.getElementById("pastCoursesListContainer");
+      const targetGrid = container ? container.querySelector(".grid") : null;
+      if (!targetGrid) return;
+
+      const card = document.createElement("label");
+      card.className = "past-course-row flex items-center justify-between gap-2 p-2.5 bg-emerald-50/70 hover:bg-emerald-50 rounded-xl border border-emerald-300 transition cursor-pointer select-none";
+      card.dataset.search = `${code} ${rawName}`;
+      card.innerHTML = `
+        <div class="flex items-center gap-2.5 overflow-hidden">
+          <input type="checkbox" id="past_chk_${safeCode}" data-code="${code}" data-credits="3" data-batch="${defaultBatch}" checked onchange="updatePastModalCounters()" class="past-course-checkbox w-4 h-4 text-emerald-600 rounded cursor-pointer shrink-0">
+          <div class="truncate">
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono font-black text-slate-800 text-[11px] bg-white px-1.5 py-0.2 rounded border border-slate-200" dir="ltr">${code}</span>
+              <strong class="text-xs text-slate-800 truncate">${rawName}</strong>
+            </div>
+            <span class="text-[9px] text-emerald-700 font-bold block truncate">(مقرر إضافي مجتاز)</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">3 ساعات</span>
+        </div>
+      `;
+      targetGrid.prepend(card);
+
+      if (input) input.value = "";
+      filterPastCoursesModal("");
+      updatePastModalCounters();
+      showToast(`تمت إضافة المقرر "${rawName}" كمقرر سابق مجتاز بنجاح! 🎉`);
+    }
+
+    // بناء قائمة المقررات السابقة حسب فرقة الطالب (بدون طلب التقدير إطلاقاً)
+    function renderPastCoursesChecklist(currentBatch) {
+      const container = document.getElementById("pastCoursesListContainer");
+      if (!container) return;
+      container.innerHTML = "";
+
+      // إعادة تصفير حقل البحث
+      const sInput = document.getElementById("pastCoursesSearchInput");
+      if (sInput) sInput.value = "";
+      const addBox = document.getElementById("pastCoursesSearchAddBox");
+      if (addBox) addBox.classList.add("hidden");
+
+      const currentIdx = ALL_BATCHES.indexOf(currentBatch);
+      const priorBatches = ALL_BATCHES.slice(0, currentIdx);
+
+      const existingCoursesMap = {};
+      priorBatches.forEach(b => {
+        SEMESTER_CONFIGS.forEach(s => {
+          const list = (allYearsCourses[b] && allYearsCourses[b][s.id]) || [];
+          list.forEach(c => {
+            const code = extractCourseCode(c.searchVal);
+            if (code) existingCoursesMap[code] = c.grade;
+          });
+        });
+      });
+
+      // ===== دالة مساعدة لبناء كارت مادة =====
+      function buildCourseCard(c, bName, isChecked, badgeClass, badgeText) {
+        const safeCode = c.code.replace(/\s+/g, '_');
+        return `
+          <label class="past-course-row flex items-center justify-between gap-2 p-2.5 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 transition cursor-pointer select-none"
+                 data-search="${c.code} ${c.codeAr || ''} ${c.nameAr} ${c.nameEn}">
+            <div class="flex items-center gap-2.5 overflow-hidden">
+              <input type="checkbox" id="past_chk_${safeCode}" data-code="${c.code}" data-credits="${c.credits}" data-batch="${bName}"
+                     onchange="updatePastModalCounters()" ${isChecked ? 'checked' : ''}
+                     class="past-course-checkbox w-4 h-4 text-emerald-600 rounded cursor-pointer shrink-0">
+              <div class="truncate">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-mono font-black text-slate-800 text-[11px] bg-white px-1.5 py-0.5 rounded border border-slate-200" dir="ltr">${c.code}</span>
+                  <strong class="text-xs text-slate-800 truncate">${c.nameAr}</strong>
+                  <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${badgeClass}">${badgeText}</span>
+                </div>
+                <span class="text-[9px] text-slate-400 font-medium block truncate" dir="ltr">${c.nameEn}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">${c.credits} س</span>
+            </div>
+          </label>
+        `;
+      }
+
+      // ===== 1) أقسام المواد الإجبارية لكل فرقة سابقة =====
+      priorBatches.forEach((bName, bIdx) => {
+        const bLevelChar = (bIdx + 1).toString();
+        const bCourses = COURSE_CATALOG.filter(c => {
+          if (c.type !== "إجباري") return false;
+          const m = c.code.match(/\d{3}/);
+          return m && m[0].charAt(0) === bLevelChar;
+        });
+
+        const section = document.createElement("div");
+        section.className = "bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3";
+
+        const totalHoursInBatch = bCourses.reduce((sum, c) => sum + c.credits, 0);
+
+        section.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center">${bIdx + 1}</span>
+              <h4 class="text-sm font-extrabold text-slate-800">مقررات ${bName} <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">إجباري</span></h4>
+            </div>
+            <span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg">${bCourses.length} مقررات · ${totalHoursInBatch} ساعة</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            ${bCourses.map(c => {
+              const isChecked = existingCoursesMap[c.code] ? existingCoursesMap[c.code] !== 'F' : true;
+              return buildCourseCard(c, bName, isChecked, "bg-blue-50 text-blue-700 border border-blue-200", "إجباري");
+            }).join('')}
+          </div>
+        `;
+        container.appendChild(section);
+      });
+
+      // ===== 2) قسم المواد الاختيارية (كل الاختياريات المتاحة) =====
+      const electiveCourses = COURSE_CATALOG.filter(c => c.type === "اختياري");
+      if (electiveCourses.length > 0) {
+        const elecSection = document.createElement("div");
+        elecSection.className = "bg-white p-4 sm:p-5 rounded-2xl border border-amber-200/80 shadow-2xs space-y-3";
+
+        const totalElecHours = electiveCourses.reduce((sum, c) => sum + c.credits, 0);
+
+        elecSection.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-amber-100">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-amber-500 text-white font-black text-xs flex items-center justify-center">⭐</span>
+              <h4 class="text-sm font-extrabold text-slate-800">المقررات الاختيارية التخصصية</h4>
+              <span class="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">اختر ما اجتزته منها فقط</span>
+            </div>
+            <span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg">${electiveCourses.length} مقرر · ${totalElecHours} ساعة</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            ${electiveCourses.map(c => {
+              const isChecked = existingCoursesMap[c.code] ? existingCoursesMap[c.code] !== 'F' : false;
+              return buildCourseCard(c, priorBatches[priorBatches.length - 1] || "الفرقة الثالثة", isChecked, "bg-amber-50 text-amber-700 border border-amber-200", "اختياري");
+            }).join('')}
+          </div>
+        `;
+        container.appendChild(elecSection);
+      }
+
+      updatePastModalCounters();
+      lucide.createIcons();
+    }
+
+    // تحديث عدادات نافذة المقررات السابقة فورياً
+    function updatePastModalCounters() {
+      const checkboxes = document.querySelectorAll(".past-course-checkbox");
+      let totalHours = 0;
+      let totalCourses = 0;
+
+      checkboxes.forEach(chk => {
+        if (chk.checked) {
+          totalCourses++;
+          totalHours += parseInt(chk.dataset.credits) || 3;
+        }
+      });
+
+      const hEl = document.getElementById("pastModalHoursCount");
+      const cEl = document.getElementById("pastModalCoursesCount");
+      if (hEl) hEl.innerText = totalHours;
+      if (cEl) cEl.innerText = totalCourses;
+    }
+
+    // تحديد أو إلغاء تحديد كافة مقررات السنوات السابقة
+    function selectAllPastCourses(selectAll) {
+      document.querySelectorAll(".past-course-checkbox").forEach(chk => {
+        chk.checked = selectAll;
+      });
+      updatePastModalCounters();
+    }
+
+    // حفظ المقررات السابقة وتوزيعها تلقائياً على فصول السجل (دون مطالبة بالتقدير)
+    function savePastCoursesSelection() {
+      const checkboxes = document.querySelectorAll(".past-course-checkbox");
+      const checkedBoxes = Array.from(checkboxes).filter(chk => chk.checked);
+
+      if (checkedBoxes.length === 0) {
+        showToast("يرجى اختيار المقررات التي اجتزتها لتتمكن من المتابعة!", true);
+        return;
+      }
+
+      const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+      const currentIdx = ALL_BATCHES.indexOf(batch);
+      const priorBatches = ALL_BATCHES.slice(0, currentIdx);
+
+      // استخراج التقديرات المسجلة مسبقاً إن وجدت
+      const existingCoursesMap = {};
+      priorBatches.forEach(b => {
+        SEMESTER_CONFIGS.forEach(s => {
+          const list = (allYearsCourses[b] && allYearsCourses[b][s.id]) || [];
+          list.forEach(c => {
+            const code = extractCourseCode(c.searchVal);
+            if (code) existingCoursesMap[code] = c.grade;
+          });
+        });
+      });
+
+      // تصفير فصول السنوات السابقة لإعادة تعبئتها بالمقررات المحددة بدقة
+      priorBatches.forEach(b => {
+        allYearsCourses[b] = { term_1: [], term_2: [], summer_term: [] };
+      });
+
+      let totalEarnedHours = 0;
+      let totalQualityPts = 0;
+
+      checkedBoxes.forEach(chk => {
+        const code = chk.dataset.code;
+        const credits = parseInt(chk.dataset.credits) || 3;
+        // لا يُطلب التقدير: نعتمد التقدير المسجل مسبقاً إن وجد ولم يكن F، وإلا تقدير B (3.00) كمقرر مجتاز بنجاح
+        const grade = (existingCoursesMap[code] && existingCoursesMap[code] !== 'F') ? existingCoursesMap[code] : "B";
+        const pts = GRADE_POINTS[grade] !== undefined ? GRADE_POINTS[grade] : 3.00;
+
+        const catCourse = COURSE_CATALOG.find(c => c.code.toUpperCase() === code.toUpperCase());
+        const searchVal = catCourse ? `${catCourse.code} - ${catCourse.nameAr} (${catCourse.nameEn})` : code;
+
+        const schedule = STANDARD_COURSE_SCHEDULE[code] || { batch: chk.dataset.batch || "الفرقة الأولى", semId: "term_1" };
+        const targetBatch = schedule.batch;
+        const targetSem = schedule.semId;
+
+        if (!allYearsCourses[targetBatch]) {
+          allYearsCourses[targetBatch] = { term_1: [], term_2: [], summer_term: [] };
+        }
+
+        allYearsCourses[targetBatch][targetSem].push({
+          searchVal: searchVal,
+          credits: credits,
+          grade: grade,
+          isRetake: false
+        });
+
+        totalEarnedHours += credits;
+        totalQualityPts += (credits * pts);
+      });
+
+      // تحديث الساعات والمعدل السابق دون مسح المعدل التراكمي السابق إذا كان الطالب قد أدخله بالفعل
+      const prevHoursInput = document.getElementById("prevHoursInput");
+      const prevGpaInput = document.getElementById("prevGpaInput");
+      if (prevHoursInput) {
+        prevHoursInput.value = totalEarnedHours;
+      }
+      if (prevGpaInput && (!prevGpaInput.value || parseFloat(prevGpaInput.value) === 0)) {
+        const calculatedOldGpa = totalEarnedHours > 0 ? (totalQualityPts / totalEarnedHours) : 3.00;
+        prevGpaInput.value = calculatedOldGpa.toFixed(2);
+      }
+
+      hasConfiguredPastCourses = true;
+
+      if (currentViewYear !== batch) {
+        loadYearCoursesToTable(currentViewYear);
+      }
+
+      closePastCoursesModal();
+      handleBatchChange(false);
+      recalculateAll();
+      autoSaveAll();
+
+      showToast(`تم حفظ ${checkedBoxes.length} مقررات سابقة مجتازة بنجاح! شجرة المتطلبات وسجلك مفعلان بالكامل 🎉`);
+    }
+
+    function renderTranscript() {
+      const name = document.getElementById("displayStudentName").innerText || "طالب غير مسجل";
+      const code = document.getElementById("displayStudentCode").innerText || "-";
+      const cgpa = document.getElementById("cumulativeGpaDisplay").innerText || "0.00";
+      const hours = document.getElementById("totalCreditsDisplay").innerText || "0";
+
+      document.getElementById("transcriptStudentName").innerText = name;
+      document.getElementById("transcriptStudentCode").innerText = code;
+      document.getElementById("transcriptCgpa").innerText = cgpa;
+      document.getElementById("transcriptHours").innerText = `${hours} من 134 ساعة`;
+
+      const container = document.getElementById("transcriptContentBody");
+      container.innerHTML = "";
+
+      let hasAnyCoursesAcrossYears = false;
+
+      ALL_BATCHES.forEach((batchName, bIndex) => {
+        const yearData = (batchName === currentViewYear) ? getCurrentTableCourses() : (allYearsCourses[batchName] || {});
+        
+        let yearAttempted = 0;
+        let yearEarned = 0;
+        let yearPoints = 0;
+        let yearTotalCourses = 0;
+
+        SEMESTER_CONFIGS.forEach(sem => {
+          const list = yearData[sem.id] || [];
+          yearTotalCourses += list.length;
+          list.forEach(c => {
+            if (c.grade === "W") return;
+            const pts = GRADE_POINTS[c.grade] !== undefined ? GRADE_POINTS[c.grade] : 0;
+            yearAttempted += c.credits;
+            yearPoints += (c.credits * pts);
+            if (c.grade !== "F") yearEarned += c.credits;
+          });
+        });
+
+        const yearGpa = yearAttempted > 0 ? (yearPoints / yearAttempted) : 0.00;
+
+        const yearCard = document.createElement("div");
+        yearCard.className = "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden";
+
+        if (yearTotalCourses === 0) {
+          yearCard.innerHTML = `
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">${bIndex + 1}</span>
+                <h4 class="font-black text-slate-700 text-sm">${batchName}</h4>
+              </div>
+              <span class="text-[11px] font-bold text-slate-400 italic">لم يتم تسجيل مقررات لهذه الفرقة بعد</span>
+            </div>
+          `;
+          container.appendChild(yearCard);
+          return;
+        }
+
+        hasAnyCoursesAcrossYears = true;
+
+        let semestersHtml = "";
+        SEMESTER_CONFIGS.forEach(sem => {
+          const list = yearData[sem.id] || [];
+          if (list.length === 0) return;
+
+          let semHours = 0;
+          let semEarned = 0;
+          let semPts = 0;
+
+          const rowsHtml = list.map((c, cIdx) => {

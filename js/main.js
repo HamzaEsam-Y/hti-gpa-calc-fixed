@@ -1359,7 +1359,9 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
     /* hasConfiguredPastCourses in config.js */
 
     // فحص هل الطالب بحاجة لتحديد مقرراته السابقة إجبارياً
-    function checkPastCoursesRequirement() {
+    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); let highestRecorded = -1; for (let i = 0; i < batchIdx; i++) { const b = ALL_BATCHES[i]; if (allYearsCourses[b] && SEMESTER_CONFIGS.some(function(s) { return (allYearsCourses[b][s.id] || []).length > 0; })) { highestRecorded = i; } } if (highestRecorded >= batchIdx - 1) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
+function checkPastCoursesRequirement() {
+  return checkPastCoursesRequirementV2();
       const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
       if (batch === "الفرقة الأولى") return;
 

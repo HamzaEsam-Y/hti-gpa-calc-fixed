@@ -154,4 +154,4 @@ function extractCourseCode(text) {
   if (!text) return "";
   const match = text.match(/\b([A-Z]{1,3}\s*\d{3})\b/i);
   return match ? match[1].replace(/\s+/g, " ").toUpperCase() : "";
-  }
+}

@@ -1743,8 +1743,9 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
         prevHoursInput.value = totalEarnedHours;
       }
       if (prevGpaInput && (!prevGpaInput.value || parseFloat(prevGpaInput.value) === 0)) {
-        const calculatedOldGpa = totalEarnedHours > 0 ? (totalQualityPts / totalEarnedHours) : 3.00;
-        prevGpaInput.value = calculatedOldGpa.toFixed(2);
+        setTimeout(() => { showToast("تم حساب ساعاتك السابقة تلقائياً ✅ خطوة أخيرة: ما هو معدلك التراكمي السابق؟ اكتبه في خانة «المعدل التراكمي السابق» 🎓"); const box = document.getElementById("prevRecordContainer"); if (box) box.scrollIntoView({ behavior: "smooth", block: "center" }); prevGpaInput.classList.add("ring-4", "ring-amber-300", "bg-amber-50"); prevGpaInput.focus(); setTimeout(() => prevGpaInput.classList.remove("ring-4", "ring-amber-300", "bg-amber-50"), 10000); }, 600);
+        //const calculatedOldGpa = totalEarnedHours > 0 ? (totalQualityPts / totalEarnedHours) : 3.00;
+        //prevGpaInput.value = calculatedOldGpa.toFixed(2);
       }
 
       hasConfiguredPastCourses = true;

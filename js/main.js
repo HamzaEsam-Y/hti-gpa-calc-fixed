@@ -471,7 +471,7 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
           SEMESTER_CONFIGS.forEach(s => {
             (((allYearsCourses[b] || {})[s.id]) || []).forEach(pc => {
               const pcCode = extractCourseCode(pc.searchVal);
-              if (pcCode) priorCoursesMap[pcCode] = { credits: parseInt(pc.credits) || 3, grade: pc.grade || "" };
+              if (pcCode) priorCoursesMap[pcCode] = { credits: parseInt(pc.credits) || 3, grade: pc.grade || "", gradeConfirmed: pc.gradeConfirmed === true };
             });
           });
         });
@@ -508,8 +508,8 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
           if (priorPassed) {
             // ساعاته محتسبة مسبقاً ضمن الساعات المكتسبة السابقة: لا تُضف ثانية
             skipEarnedForPriorRetake = true;
-            if (priorRec.grade && GRADE_POINTS[priorRec.grade] !== undefined) {
-              // تقدير المحاولة السابقة معروف: تُستبدل نقاطها وساعاتها من الرصيد بدقة
+            if (priorRec.grade && priorRec.gradeConfirmed && GRADE_POINTS[priorRec.grade] !== undefined) {
+              // تقدير المحاولة السابقة أكّده الطالب صراحة: تُستبدل نقاطها وساعاتها من الرصيد بدقة
               priorRetakeAdjHours += priorRec.credits;
               priorRetakeAdjPoints += priorRec.credits * GRADE_POINTS[priorRec.grade];
             } else {
@@ -1744,7 +1744,7 @@ function checkPastCoursesRequirement() {
           const list = (allYearsCourses[b] && allYearsCourses[b][s.id]) || [];
           list.forEach(c => {
             const code = extractCourseCode(c.searchVal);
-            if (code) existingCoursesMap[code] = c.grade;
+            if (code) existingCoursesMap[code] = { grade: c.grade, gradeConfirmed: !!c.gradeConfirmed };
           });
         });
       });
@@ -1761,7 +1761,8 @@ function checkPastCoursesRequirement() {
         const code = chk.dataset.code;
         const credits = parseInt(chk.dataset.credits) || 3;
         // لا يُطلب التقدير: نحتفظ بالتقدير الحقيقي المسجل إن وجد ولم يكن F، وإلا يُسجل كمجتاز بدون تقدير (الساعات فقط تُحتسب، والمعدل السابق من إدخال الطالب)
-        const grade = (existingCoursesMap[code] && existingCoursesMap[code] !== 'F') ? existingCoursesMap[code] : "";
+        const exPrev = existingCoursesMap[code];
+        const grade = (exPrev && exPrev.grade && exPrev.grade !== 'F') ? exPrev.grade : "";
         const pts = (grade && GRADE_POINTS[grade] !== undefined) ? GRADE_POINTS[grade] : 0;
 
         const catCourse = COURSE_CATALOG.find(c => c.code.toUpperCase() === code.toUpperCase());
@@ -1779,6 +1780,7 @@ function checkPastCoursesRequirement() {
           searchVal: searchVal,
           credits: credits,
           grade: grade,
+          gradeConfirmed: (exPrev && grade && grade === exPrev.grade) ? !!exPrev.gradeConfirmed : false,
           isRetake: false
         });
 

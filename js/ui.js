@@ -233,7 +233,7 @@ function getCurrentTableCourses() {
             semData[sem.id].push({
               searchVal: document.getElementById(`search_${rowId}`)?.value || "",
               credits: parseInt(document.getElementById(`credits_${rowId}`)?.value) || 3,
-              grade: document.getElementById(`grade_${rowId}`)?.value || "A",
+              grade: document.getElementById(`grade_${rowId}`)?.value ?? "A",
               isRetake: document.getElementById(`retake_${rowId}`)?.checked || false
             });
           });
@@ -563,7 +563,7 @@ function getCurrentTableCourses() {
       const courseData = {
         searchVal: document.getElementById(`search_${rowId}`)?.value || "",
         credits: parseInt(document.getElementById(`credits_${rowId}`)?.value) || 3,
-        grade: document.getElementById(`grade_${rowId}`)?.value || "A",
+        grade: document.getElementById(`grade_${rowId}`)?.value ?? "A",
         isRetake: document.getElementById(`retake_${rowId}`)?.checked || false
       };
 
@@ -611,7 +611,7 @@ function getCurrentTableCourses() {
         const courseData = {
           searchVal: document.getElementById(`search_${rowId}`)?.value || "",
           credits: parseInt(document.getElementById(`credits_${rowId}`)?.value) || 3,
-          grade: document.getElementById(`grade_${rowId}`)?.value || "A",
+          grade: document.getElementById(`grade_${rowId}`)?.value ?? "A",
           isRetake: document.getElementById(`retake_${rowId}`)?.checked || false
         };
         deletedCourseHistory.push({ semId, courseData });

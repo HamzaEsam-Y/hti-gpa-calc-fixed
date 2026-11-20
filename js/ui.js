@@ -536,7 +536,7 @@ function getCurrentTableCourses() {
         </td>
         <td class="p-2 text-center" data-label="التقدير المحقق">
           <select id="grade_${rowId}" onchange="recalculateAll(); autoSaveAll();" class="text-xs font-extrabold px-3 py-2 border border-slate-300 bg-white rounded-lg text-emerald-800">
-            ${Object.keys(GRADE_POINTS).map(g => `<option value="${g}" ${selectedGrade === g ? 'selected' : ''}>${g} ${g === 'W' ? '(انسحاب بعذر)' : '(' + GRADE_POINTS[g].toFixed(2) + ')'}</option>`).join('')}
+            ${selectedGrade === '' ? '<option value="" selected>—</option>' : ''}${Object.keys(GRADE_POINTS).map(g => `<option value="${g}" ${selectedGrade === g ? 'selected' : ''}>${g} ${g === 'W' ? '(انسحاب بعذر)' : '(' + GRADE_POINTS[g].toFixed(2) + ')'}</option>`).join('')}
           </select>
         </td>
         <td class="p-2 text-center" data-label="إعادة المقرر">

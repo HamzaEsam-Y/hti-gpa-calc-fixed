@@ -8,6 +8,12 @@ function continueAsGuest() {
     const saved = localStorage.getItem("hti_gpa_state_v2");
     checkProfileCompletion(saved ? JSON.parse(saved) : null);
   }
+  // بوابة أول دخول بعد اختفاء شاشة الدخول: لو الملف مكتمل نفحص المقررات السابقة وسؤال الإنذارات
+  setTimeout(() => {
+    const profileModal = document.getElementById("profile-modal");
+    const profileOpen = profileModal && !profileModal.classList.contains("hidden");
+    if (!profileOpen && typeof runFirstEntryGate === "function") runFirstEntryGate();
+  }, 500);
 }
 
 /**
@@ -1227,7 +1233,8 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
 
       const studentData = {
         hasConfiguredPastCourses: hasConfiguredPastCourses,
-        pastConfirmedBatches: (typeof getConfirmedPastBatches === "function" ? getConfirmedPastBatches() : []),
+        pastConfirmedBatches: (typeof getConfirmedPastBatchesRaw === "function" ? getConfirmedPastBatchesRaw() : []),
+        priorWarnAnswered: priorWarnAnswered,
         name: document.getElementById("displayStudentName").innerText,
         code: document.getElementById("displayStudentCode").innerText,
         year: document.getElementById("displayAcademicYear").innerText,
@@ -1261,6 +1268,8 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
           const data = doc.data();
           applyLoadedData(data);
           checkProfileCompletion(data);
+          // بوابة أول دخول لازم تتنفذ على البيانات السحابية الفعلية بعد تحميلها (ملف مكتمل)
+          if (data && data.name && data.code && typeof runFirstEntryGate === "function") runFirstEntryGate();
         } else {
           checkProfileCompletion(null);
         }
@@ -1290,6 +1299,7 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
       if (data.prevGpa !== undefined) document.getElementById("prevGpaInput").value = data.prevGpa;
       if (data.hasConfiguredPastCourses !== undefined) hasConfiguredPastCourses = !!data.hasConfiguredPastCourses;
       if (data.pastConfirmedBatches !== undefined && typeof setConfirmedPastBatches === "function") setConfirmedPastBatches(data.pastConfirmedBatches);
+      if (data.priorWarnAnswered !== undefined) priorWarnAnswered = !!data.priorWarnAnswered;
 
       if (data.hasPriorWarnings !== undefined) {
         const yesRadio = document.getElementById("priorWarnRadioYes");
@@ -1405,9 +1415,46 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
     /* hasConfiguredPastCourses in config.js */
 
     // فحص هل الطالب بحاجة لتحديد مقرراته السابقة إجبارياً
-    function getConfirmedPastBatches() { try { const v = JSON.parse(localStorage.getItem("hti_past_confirmed_batches") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function getConfirmedPastBatchesRaw() { try { const v = JSON.parse(localStorage.getItem("hti_past_confirmed_batches") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function getConfirmedPastBatches() { return getConfirmedPastBatchesRaw().map(function(x){ return (typeof x === "string") ? x : (x && x.b); }).filter(Boolean); }
     function setConfirmedPastBatches(arr) { try { localStorage.setItem("hti_past_confirmed_batches", JSON.stringify(arr)); } catch (e) {} }
-    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); let confirmed = getConfirmedPastBatches(); if (confirmed.length === 0 && hasConfiguredPastCourses) { let migHi = -1; for (let i = 0; i < batchIdx; i++) { const mb = ALL_BATCHES[i]; if (allYearsCourses[mb] && SEMESTER_CONFIGS.some(function(s) { return (allYearsCourses[mb][s.id] || []).length > 0; })) { migHi = i; } } if (migHi >= 0) { confirmed = ALL_BATCHES.slice(0, migHi + 1); setConfirmedPastBatches(confirmed); } } let allConfirmed = true; for (let i = 0; i < batchIdx; i++) { if (confirmed.indexOf(ALL_BATCHES[i]) === -1) { allConfirmed = false; break; } } if (allConfirmed) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
+    function batchHasRecordedCourses(b) { return !!(allYearsCourses[b] && SEMESTER_CONFIGS.some(function(s) { return ((allYearsCourses[b][s.id]) || []).length > 0; })); }
+    // إصلاح ذاتي: نسخة ٢١ نوفمبر (٠٠:٢٦-٠٠:٣٧) كانت تخزّن تأكيد كل الفرق السابقة تلقائياً؛ أي تأكيد قديم غير مدعوم بمقررات مسجلة يُسقط حتى تظهر خطوة التحديد الإجبارية من جديد. التأكيدات الصريحة (explicit) تبقى كما هي حتى لو بلا مقررات (إلغاء تحديد الكل اختيار صحيح).
+    function pruneUnbackedConfirmedBatches() {
+      const raw = getConfirmedPastBatchesRaw();
+      const kept = raw.filter(function(x) {
+        if (x && typeof x === "object" && x.explicit) return true;
+        const b = (typeof x === "string") ? x : (x && x.b);
+        return !!b && batchHasRecordedCourses(b);
+      });
+      if (kept.length !== raw.length) setConfirmedPastBatches(kept);
+      return kept;
+    }
+    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); const raw = pruneUnbackedConfirmedBatches(); let confirmed = raw.map(function(x){ return (typeof x === "string") ? x : (x && x.b); }).filter(Boolean); for (let i = 0; i < batchIdx; i++) { if (confirmed.indexOf(ALL_BATCHES[i]) === -1 && batchHasRecordedCourses(ALL_BATCHES[i])) { confirmed.push(ALL_BATCHES[i]); } } let allConfirmed = true; for (let i = 0; i < batchIdx; i++) { if (confirmed.indexOf(ALL_BATCHES[i]) === -1) { allConfirmed = false; break; } } if (allConfirmed) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
+
+    // بوابة أول دخول موحدة: تحديد المقررات السابقة (إجباري) ثم سؤال الإنذارات الأكاديمية لو لم يُجب عنه من قبل
+    function runFirstEntryGate() {
+      const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+      if (batch === "الفرقة الأولى") return;
+      checkPastCoursesRequirementV2();
+      setTimeout(function() {
+        if (hasConfiguredPastCourses && !priorWarnAnswered) askPriorWarnings();
+      }, 700);
+    }
+
+    function askPriorWarnings() {
+      const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+      if (batch === "الفرقة الأولى" || priorWarnAnswered) return;
+      showToast("⚠️ سؤال مطلوب قبل المتابعة: هل عليك إنذارات أكاديمية سابقة؟ أجب من نافذة الملف الشخصي", true);
+      openProfileModal();
+      const sec = document.getElementById("modalPriorWarnSection");
+      if (sec) {
+        sec.classList.remove("hidden");
+        sec.classList.add("ring-4", "ring-rose-300");
+        sec.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(function() { sec.classList.remove("ring-4", "ring-rose-300"); }, 9000);
+      }
+    }
 function checkPastCoursesRequirement() {
   return checkPastCoursesRequirementV2();
       const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
@@ -1801,8 +1848,9 @@ function checkPastCoursesRequirement() {
       }
 
       hasConfiguredPastCourses = true;
-      const confirmedBatches = getConfirmedPastBatches();
-      priorBatches.forEach(b => { if (confirmedBatches.indexOf(b) === -1) confirmedBatches.push(b); });
+      const confirmedBatches = getConfirmedPastBatchesRaw();
+      const confirmedNames = confirmedBatches.map(function(x){ return (typeof x === "string") ? x : (x && x.b); });
+      priorBatches.forEach(b => { if (confirmedNames.indexOf(b) === -1) { confirmedBatches.push({ b: b, explicit: true }); confirmedNames.push(b); } });
       setConfirmedPastBatches(confirmedBatches);
 
       loadYearCoursesToTable(batch);
@@ -1813,6 +1861,9 @@ function checkPastCoursesRequirement() {
       autoSaveAll();
 
       showToast(`تم حفظ ${checkedBoxes.length} مقررات سابقة مجتازة بنجاح! شجرة المتطلبات وسجلك مفعلان بالكامل 🎉`);
+
+      // بعد إتمام تحديد المقررات: لو سؤال الإنذارات لم يُجب عنه بعد، نسأله الآن
+      if (!priorWarnAnswered) { setTimeout(function() { if (typeof askPriorWarnings === "function") askPriorWarnings(); }, 2500); }
     }
 
     function renderTranscript() {
@@ -2187,7 +2238,7 @@ document.addEventListener("DOMContentLoaded", () => {
       recalculateAll();
       renderCoursesTree("");
       lucide.createIcons();
-      checkPastCoursesRequirement();
+      // بوابة أول دخول تُستدعى بعد اختيار «المتابعة كزائر» أو بعد تحميل بيانات الحساب السحابية، لا هنا، حتى لا تظهر النوافذ خلف شاشة الدخول.
 
       // منع إغلاق نافذة المقررات السابقة بـ ESC في وضع الإجبار
       document.addEventListener("keydown", (e) => {

@@ -70,6 +70,7 @@ const SEMESTER_CONFIGS = [
 let currentViewYear = "الفرقة الأولى";
 let activeSelectedSemester = "term_1";
 let hasConfiguredPastCourses = false;
+let priorWarnAnswered = false; // هل أجاب الطالب فعلياً على سؤال الإنذارات الأكاديمية السابقة؟
 let summerTrainingState = { train1: false, train2: false };
 let lastDeletedCourse = null;
 let deletedCourseHistory = [];

@@ -282,7 +282,7 @@ function getCurrentTableCourses() {
         const tbody = document.getElementById(`coursesTableBody-${sem.id}`);
         if (tbody) {
           if (typeof historyManager !== "undefined") {
-        historyManager.pushState("تفريغ " + semName);
+        historyManager.pushState("تفريغ " + sem.name);
       }
       tbody.innerHTML = "";
           const list = yearData[sem.id];
@@ -1770,4 +1770,4 @@ function exportTranscriptToPDF() {
     // البديل المباشر
     window.print();
   }
-}
+                      }

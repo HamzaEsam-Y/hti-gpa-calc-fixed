@@ -461,8 +461,11 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
       let electiveEarned = 0;
       let projectEarned = 0;
 
+      const studentBatchNow = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+      const currentBatchIdxNow = ALL_BATCHES.indexOf(studentBatchNow);
       coursesChronological.forEach(c => {
         if (c.grade === "W") return;
+        if (ALL_BATCHES.indexOf(c.batch) < currentBatchIdxNow) return;
         const courseKey = c.code || c.searchVal;
         const pts = GRADE_POINTS[c.grade] !== undefined ? GRADE_POINTS[c.grade] : 0;
 
@@ -514,8 +517,9 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
 
       // دعم الساعات السابقة المدخلة يدوياً
       const studentBatch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
-      if (studentBatch !== "الفرقة الأولى" && grandAttemptedHours === 0) {
-        const pHours = parseFloat(document.getElementById("prevHoursInput")?.value) || 0;
+      if (studentBatch !== "الفرقة الأولى") {
+        let pHours = parseFloat(document.getElementById("prevHoursInput")?.value) || 0;
+        if (pHours === 0 && currentBatchIdxNow > 0) { ALL_BATCHES.slice(0, currentBatchIdxNow).forEach(b => { SEMESTER_CONFIGS.forEach(s => { (((allYearsCourses[b] || {})[s.id]) || []).forEach(c => { if (c.grade !== "F" && c.grade !== "W") pHours += (parseInt(c.credits) || 0); }); }); }); }
         const pGpa = parseFloat(document.getElementById("prevGpaInput")?.value) || 0;
         grandAttemptedHours += pHours;
         grandTotalPoints += (pHours * pGpa);
@@ -1183,6 +1187,7 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
 
       const studentData = {
         hasConfiguredPastCourses: hasConfiguredPastCourses,
+        pastConfirmedBatches: (typeof getConfirmedPastBatches === "function" ? getConfirmedPastBatches() : []),
         name: document.getElementById("displayStudentName").innerText,
         code: document.getElementById("displayStudentCode").innerText,
         year: document.getElementById("displayAcademicYear").innerText,
@@ -1244,6 +1249,7 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
       if (data.prevHours !== undefined) document.getElementById("prevHoursInput").value = data.prevHours;
       if (data.prevGpa !== undefined) document.getElementById("prevGpaInput").value = data.prevGpa;
       if (data.hasConfiguredPastCourses !== undefined) hasConfiguredPastCourses = !!data.hasConfiguredPastCourses;
+      if (data.pastConfirmedBatches !== undefined && typeof setConfirmedPastBatches === "function") setConfirmedPastBatches(data.pastConfirmedBatches);
 
       if (data.hasPriorWarnings !== undefined) {
         const yesRadio = document.getElementById("priorWarnRadioYes");
@@ -1359,7 +1365,9 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
     /* hasConfiguredPastCourses in config.js */
 
     // فحص هل الطالب بحاجة لتحديد مقرراته السابقة إجبارياً
-    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); let highestRecorded = -1; for (let i = 0; i < batchIdx; i++) { const b = ALL_BATCHES[i]; if (allYearsCourses[b] && SEMESTER_CONFIGS.some(function(s) { return (allYearsCourses[b][s.id] || []).length > 0; })) { highestRecorded = i; } } if (highestRecorded >= batchIdx - 1) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
+    function getConfirmedPastBatches() { try { const v = JSON.parse(localStorage.getItem("hti_past_confirmed_batches") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function setConfirmedPastBatches(arr) { try { localStorage.setItem("hti_past_confirmed_batches", JSON.stringify(arr)); } catch (e) {} }
+    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); let confirmed = getConfirmedPastBatches(); if (confirmed.length === 0 && hasConfiguredPastCourses) { confirmed = ALL_BATCHES.slice(0, batchIdx); setConfirmedPastBatches(confirmed); } let allConfirmed = true; for (let i = 0; i < batchIdx; i++) { if (confirmed.indexOf(ALL_BATCHES[i]) === -1) { allConfirmed = false; break; } } if (allConfirmed) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
 function checkPastCoursesRequirement() {
   return checkPastCoursesRequirementV2();
       const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
@@ -1712,9 +1720,9 @@ function checkPastCoursesRequirement() {
       checkedBoxes.forEach(chk => {
         const code = chk.dataset.code;
         const credits = parseInt(chk.dataset.credits) || 3;
-        // لا يُطلب التقدير: نعتمد التقدير المسجل مسبقاً إن وجد ولم يكن F، وإلا تقدير B (3.00) كمقرر مجتاز بنجاح
-        const grade = (existingCoursesMap[code] && existingCoursesMap[code] !== 'F') ? existingCoursesMap[code] : "B";
-        const pts = GRADE_POINTS[grade] !== undefined ? GRADE_POINTS[grade] : 3.00;
+        // لا يُطلب التقدير: نحتفظ بالتقدير الحقيقي المسجل إن وجد ولم يكن F، وإلا يُسجل كمجتاز بدون تقدير (الساعات فقط تُحتسب، والمعدل السابق من إدخال الطالب)
+        const grade = (existingCoursesMap[code] && existingCoursesMap[code] !== 'F') ? existingCoursesMap[code] : "";
+        const pts = (grade && GRADE_POINTS[grade] !== undefined) ? GRADE_POINTS[grade] : 0;
 
         const catCourse = COURSE_CATALOG.find(c => c.code.toUpperCase() === code.toUpperCase());
         const searchVal = catCourse ? `${catCourse.code} - ${catCourse.nameAr} (${catCourse.nameEn})` : code;
@@ -1751,6 +1759,9 @@ function checkPastCoursesRequirement() {
       }
 
       hasConfiguredPastCourses = true;
+      const confirmedBatches = getConfirmedPastBatches();
+      priorBatches.forEach(b => { if (confirmedBatches.indexOf(b) === -1) confirmedBatches.push(b); });
+      setConfirmedPastBatches(confirmedBatches);
 
       if (currentViewYear !== batch) {
         loadYearCoursesToTable(currentViewYear);
@@ -2006,8 +2017,9 @@ function checkPastCoursesRequirement() {
         const semData = (b === currentViewYear) ? getCurrentTableCourses() : (allYearsCourses[b] || {});
         SEMESTER_CONFIGS.forEach(sem => {
           const list = semData[sem.id] || [];
+          const isPriorBatchRec = ALL_BATCHES.indexOf(b) < ALL_BATCHES.indexOf(document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى");
           list.forEach(c => {
-            if (c.grade && c.grade !== "F" && c.grade !== "W") {
+            if (c.grade !== "F" && c.grade !== "W" && (c.grade || isPriorBatchRec)) {
               const code = extractCourseCode(c.searchVal);
               if (code) passed.add(code);
             }

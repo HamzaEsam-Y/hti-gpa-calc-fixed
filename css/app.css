@@ -1,0 +1,208 @@
+/**
+ * app.css - Stylesheet & Mobile Responsive Enhancements
+ * GPA BugFree / Credit Hours Management System
+ */
+
+/* ============================================================== */
+/* 1. استجابة الجداول على الموبايل (Responsive Cards View) */
+/* ============================================================== */
+@media (max-width: 640px) {
+  /* تحويل صفوف الجدول إلى كروت سهلة القراءة دون الحاجة لسكرول أفقي */
+  .semester-table thead {
+    display: none; /* إخفاء رؤوس الأعمدة على الشاشات الصغيرة */
+  }
+
+  .semester-table, 
+  .semester-table tbody, 
+  .semester-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .semester-table tr {
+    margin-bottom: 0.85rem;
+    padding: 0.85rem;
+    background: #ffffff;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    position: relative;
+  }
+
+  .semester-table tr:hover {
+    border-color: #10b981;
+  }
+
+  .semester-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0 !important;
+    border: none !important;
+    font-size: 0.8rem;
+  }
+
+  /* تسميات توضيحية للبيانات على الموبايل */
+  .semester-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #64748b;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .semester-table td.course-search-cell {
+    display: block;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px dashed #e2e8f0 !important;
+    margin-bottom: 0.35rem;
+  }
+
+  .semester-table td.course-search-cell::before {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .semester-table td.action-cell {
+    justify-content: flex-end;
+    padding-top: 0.5rem !important;
+    border-top: 1px solid #f1f5f9 !important;
+    margin-top: 0.35rem;
+  }
+
+  /* خانات الإدخال داخل الكرت تأخذ عرضاً مريحاً وواضحاً */
+  .semester-table td select {
+    flex: 1;
+    max-width: 65%;
+    min-height: 2.4rem;
+    font-size: 0.85rem !important;
+  }
+
+  .semester-table td.course-search-cell input[type="text"] {
+    width: 100%;
+    min-height: 2.6rem;
+    font-size: 0.85rem !important;
+  }
+
+  /* تكبير صندوق اختيار الإعادة ليسهل الضغط عليه */
+  .semester-table td input[type="checkbox"] {
+    width: 1.3rem;
+    height: 1.3rem;
+  }
+}
+
+/* ============================================================== */
+/* 2. شريط تحذير الحد الأقصى للساعات المعتمدة */
+/* ============================================================== */
+.credits-warning-banner {
+  background: linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%);
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  border-radius: 0.75rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: pulseSlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseSlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+/* ============================================================== */
+/* 3. بادج أهلية التدريب الصيفي الذكي */
+/* ============================================================== */
+.summer-training-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.summer-training-badge.eligible {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.summer-training-badge.not-eligible {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+/* ============================================================== */
+/* 4. كبسولة أزرار التراجع السريع (Undo / Redo Floating Dock) */
+/* ============================================================== */
+.history-dock {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 0.35rem 0.6rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+.history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.65rem;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.history-btn:hover:not(:disabled) {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.history-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ============================================================== */
+/* 5. تحسينات الطباعة وكشف الدرجات الرسمي */
+/* ============================================================== */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print, header, nav, .history-dock, button, #profile-modal {
+    display: none !important;
+  }
+  #transcript-modal {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  #transcript-modal > div {
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

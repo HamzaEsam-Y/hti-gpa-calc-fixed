@@ -1978,3 +1978,181 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
       const graphDiv = document.getElementById("coursesVisualGraphContainer");
       const cardsDiv = document.getElementById("coursesTreeGrid");
       const btnGraph = document.getElementById("btn-tree-graph");
+      const btnCards = document.getElementById("btn-tree-cards");
+
+      if (mode === "graph") {
+        if (graphDiv) graphDiv.classList.remove("hidden");
+        if (cardsDiv) cardsDiv.classList.add("hidden");
+        if (btnGraph) btnGraph.className = "flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 bg-teal-600 text-white shadow-md shadow-teal-600/20";
+        if (btnCards) btnCards.className = "flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200";
+        renderVisualPrerequisitesGraph(document.getElementById("treeSearchInput")?.value || "");
+      } else {
+        if (graphDiv) graphDiv.classList.add("hidden");
+        if (cardsDiv) cardsDiv.classList.remove("hidden");
+        if (btnCards) btnCards.className = "flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 bg-teal-600 text-white shadow-md shadow-teal-600/20";
+        if (btnGraph) btnGraph.className = "flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200";
+        renderCoursesTree(document.getElementById("treeSearchInput")?.value || "");
+      }
+      lucide.createIcons();
+    }
+
+    // استخراج مجموعة المواد التي اجتازها الطالب بنجاح عبر كافة الفصول
+    function getStudentPassedCoursesSet() {
+      const passed = new Set();
+      ALL_BATCHES.forEach(b => {
+        const semData = (b === currentViewYear) ? getCurrentTableCourses() : (allYearsCourses[b] || {});
+        SEMESTER_CONFIGS.forEach(sem => {
+          const list = semData[sem.id] || [];
+          list.forEach(c => {
+            if (c.grade && c.grade !== "F" && c.grade !== "W") {
+              const code = extractCourseCode(c.searchVal);
+              if (code) passed.add(code);
+            }
+          });
+        });
+      });
+      return passed;
+    }
+
+    function renderVisualPrerequisitesGraph(filterQuery = "") {
+      const container = document.getElementById("coursesVisualGraphContainer");
+      if (!container) return;
+      container.innerHTML = "";
+
+      const normFilter = normalizeSearchText(filterQuery);
+      const passedSet = getStudentPassedCoursesSet();
+
+      // تقسيم المقررات لمستويات أكاديمية (Level 100, 200, 300, 400)
+      const levels = [
+        { id: "100", title: "المستوى التأسيسي (100) — مقررات الفرقة الأولى", badge: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+        { id: "200", title: "المستوى الوسيط (200) — مقررات الفرقة الثانية", badge: "bg-blue-100 text-blue-800 border-blue-300" },
+        { id: "300", title: "المستوى المتقدم (300) — مقررات الفرقة الثالثة", badge: "bg-indigo-100 text-indigo-800 border-indigo-300" },
+        { id: "400", title: "مستوى التخصص والتخرج (400) — مقررات الفرقة الرابعة", badge: "bg-purple-100 text-purple-800 border-purple-300" }
+      ];
+
+      levels.forEach(lvl => {
+        // فلترة مقررات هذا المستوى
+        const lvlCourses = COURSE_CATALOG.filter(c => {
+          const m = c.code.match(/\d{3}/);
+          const cLvl = m ? m[0].charAt(0) + "00" : "100";
+          if (cLvl !== lvl.id) return false;
+
+          if (!normFilter) return true;
+          return (
+            normalizeSearchText(c.code).includes(normFilter) ||
+            normalizeSearchText(c.codeAr).includes(normFilter) ||
+            normalizeSearchText(c.nameAr).includes(normFilter) ||
+            normalizeSearchText(c.nameEn).includes(normFilter) ||
+            normalizeSearchText(c.prereq).includes(normFilter)
+          );
+        });
+
+        if (lvlCourses.length === 0) return;
+
+        const levelSection = document.createElement("div");
+        levelSection.className = "bg-white p-5 rounded-3xl border border-slate-200/90 shadow-sm space-y-4";
+
+        levelSection.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center shadow-xs">${lvl.id}</span>
+              <div>
+                <h4 class="font-black text-slate-900 text-sm sm:text-base">${lvl.title}</h4>
+                <p class="text-[11px] text-slate-500">خريطة تسلسل المقررات وتصنيف حالتها بناءً على سجلك الفعلي</p>
+              </div>
+            </div>
+            <span class="text-xs font-bold px-3 py-1 rounded-xl border ${lvl.badge}">${lvlCourses.length} مقررات</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            ${lvlCourses.map(c => {
+              const isPassed = passedSet.has(c.code.toUpperCase());
+              const prereqCode = (c.prereq && c.prereq !== "-" && c.prereq !== "To be determined") ? c.prereq.toUpperCase() : null;
+              const isPrereqPassed = !prereqCode || passedSet.has(prereqCode);
+              const isUnlocked = !isPassed && isPrereqPassed;
+              const isLocked = !isPassed && !isPrereqPassed;
+
+              let cardBorderClass = "border-slate-200 bg-slate-50/70 opacity-80 hover:opacity-100";
+              let statusBadge = '<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">مغلقة 🔒</span>';
+
+              if (isPassed) {
+                cardBorderClass = "border-emerald-300 bg-emerald-50/50 shadow-xs hover:border-emerald-500";
+                statusBadge = '<span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">مجتازة بنجاح ✓</span>';
+              } else if (isUnlocked) {
+                cardBorderClass = "border-amber-300 bg-amber-50/40 shadow-xs hover:border-amber-500 ring-2 ring-amber-400/20";
+                statusBadge = '<span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">جاهزة للتسجيل 🚀</span>';
+              }
+
+              const prereqCourseObj = prereqCode ? COURSE_CATALOG.find(cat => cat.code.toUpperCase() === prereqCode) : null;
+              const prereqDisplay = prereqCode 
+                ? `<span class="text-rose-700 font-bold">${prereqCode} ${prereqCourseObj ? '(' + prereqCourseObj.nameAr + ')' : ''}</span>`
+                : '<span class="text-slate-400 font-medium">لا يوجد (مقرر استهلالي)</span>';
+
+              return `
+                <div class="p-3.5 rounded-2xl border transition-all ${cardBorderClass} flex flex-col justify-between group">
+                  <div>
+                    <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                      <span class="font-mono text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-lg border border-slate-200" dir="ltr">${c.code}</span>
+                      ${statusBadge}
+                    </div>
+                    <h5 class="text-xs font-black text-slate-900 group-hover:text-teal-700 transition-colors">${c.nameAr}</h5>
+                    <p class="text-[10px] text-slate-500 font-medium mb-2.5 truncate" dir="ltr">${c.nameEn}</p>
+                  </div>
+
+                  <div class="pt-2 border-t border-slate-200/70 text-[10px] space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-slate-500 font-semibold">المتطلب السابق:</span>
+                      ${prereqDisplay}
+                    </div>
+                    <div class="flex items-center justify-between text-slate-400">
+                      <span>الساعات: ${c.credits} س</span>
+                      <span>${c.type}</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        container.appendChild(levelSection);
+      });
+
+      lucide.createIcons();
+    }
+
+document.addEventListener("DOMContentLoaded", () => {
+      loadCustomCoursesFromStorage();
+      buildSemestersUI();
+      addBestWorstCourseRow();
+      addBestWorstCourseRow();
+      loadAllStateFromStorage();
+      handleBatchChange(false);
+      updateYearTabsUI();
+      recalculateAll();
+      renderCoursesTree("");
+      lucide.createIcons();
+      checkPastCoursesRequirement();
+
+      // منع إغلاق نافذة المقررات السابقة بـ ESC في وضع الإجبار
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          const pastModal = document.getElementById("past-courses-modal");
+          if (pastModal && !pastModal.classList.contains("hidden") && !hasConfiguredPastCourses) {
+            const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
+            if (batch !== "الفرقة الأولى") {
+              e.preventDefault();
+              e.stopPropagation();
+              showToast("⚠️ يرجى تحديد مقرراتك السابقة أولاً ثم اضغط تأكيد وحفظ", true);
+            }
+          }
+        }
+      });
+
+      // إغلاق قائمة البحث عند الضغط خارجها
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".course-search-wrapper")) {
+          document.querySelectorAll(".autocomplete-items").forEach(el => el.classList.add("hidden"));
+        }
+      });
+    });

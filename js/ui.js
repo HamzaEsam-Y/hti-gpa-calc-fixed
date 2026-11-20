@@ -208,7 +208,8 @@ function validateProfileField(input, regex, errorMsg) {
         `المعدل التراكمي = مجموع (ساعات كل مقرر × نقاط تقديره) ÷ مجموع الساعات المحتسبة` +
         `<br>= ${calc.points.toFixed(2)} ÷ ${calc.hours} = <strong class="text-emerald-300">${calc.cgpa.toFixed(2)}</strong>` +
         `<br><span class="text-slate-400">ملاحظة: مقررات الانسحاب (W) والصفوف الفارغة لا تدخل في الحساب، وعند إعادة مقرر تُستبدل نقاط المحاولة القديمة بالجديدة وفق اللائحة.</span>` +
-        `<br><span class="text-amber-300/90">⚠️ النقاط محسوبة وفق سلم داخلي موحد غير مؤكد رسمياً. راجع اللائحة الرسمية للمعهد (تبويب الدليل).</span>`;
+        `<br><span class="text-amber-300/90">⚠️ النقاط محسوبة وفق سلم داخلي موحد غير مؤكد رسمياً. راجع اللائحة الرسمية للمعهد (تبويب الدليل).</span>` +
+        (window.retakeAnchorNotes && window.retakeAnchorNotes.length ? `<br><span class="text-amber-300/90">⚠️ مقررات معادة من سنوات سابقة دون تقدير سابق مسجل (${window.retakeAnchorNotes.join("، ")}): أُضيفت المحاولة الجديدة وبقي أثر المحاولة القديمة ضمن المعدل السابق المُدخل، فالنتيجة تقريبية لهذه المقررات. سجّل تقدير المحاولة السابقة في جدول سنتها لحساب أدق.</span>` : "");
     }
 
     function checkProfileCompletion(data) {

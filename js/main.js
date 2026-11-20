@@ -463,6 +463,23 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
 
       const studentBatchNow = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
       const currentBatchIdxNow = ALL_BATCHES.indexOf(studentBatchNow);
+
+      // خريطة مقررات السنوات السابقة لمعالجة إعادة مقرر مضمّن في رصيد المعدل السابق
+      const priorCoursesMap = {};
+      if (currentBatchIdxNow > 0) {
+        ALL_BATCHES.slice(0, currentBatchIdxNow).forEach(b => {
+          SEMESTER_CONFIGS.forEach(s => {
+            (((allYearsCourses[b] || {})[s.id]) || []).forEach(pc => {
+              const pcCode = extractCourseCode(pc.searchVal);
+              if (pcCode) priorCoursesMap[pcCode] = { credits: parseInt(pc.credits) || 3, grade: pc.grade || "" };
+            });
+          });
+        });
+      }
+      window.retakeAnchorNotes = [];
+      let priorRetakeAdjHours = 0;
+      let priorRetakeAdjPoints = 0;
+
       coursesChronological.forEach(c => {
         if (c.grade === "W") return;
         if (ALL_BATCHES.indexOf(c.batch) < currentBatchIdxNow) return;
@@ -483,6 +500,27 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
           }
         }
 
+        // إعادة مقرر محاولة سابقة مضمّنة في رصيد (ساعات/معدل) السنوات السابقة
+        let skipEarnedForPriorRetake = false;
+        if (c.isRetake && !activeCoursesMap[courseKey] && currentBatchIdxNow > 0) {
+          const priorRec = priorCoursesMap[courseKey];
+          const priorPassed = priorRec && priorRec.grade !== "F" && priorRec.grade !== "W";
+          if (priorPassed) {
+            // ساعاته محتسبة مسبقاً ضمن الساعات المكتسبة السابقة: لا تُضف ثانية
+            skipEarnedForPriorRetake = true;
+            if (priorRec.grade && GRADE_POINTS[priorRec.grade] !== undefined) {
+              // تقدير المحاولة السابقة معروف: تُستبدل نقاطها وساعاتها من الرصيد بدقة
+              priorRetakeAdjHours += priorRec.credits;
+              priorRetakeAdjPoints += priorRec.credits * GRADE_POINTS[priorRec.grade];
+            } else {
+              window.retakeAnchorNotes.push(courseKey);
+            }
+          } else {
+            // محاولة سابقة غير مسجلة أو راسبة: تقديرها غير معروف من المجموع وحده
+            window.retakeAnchorNotes.push(courseKey);
+          }
+        }
+
         // تحديد سقف الدرجات عند الإعادة بعد الرسوب وفق المادة (20)
         let countedPts = pts;
         if (c.isRetake && activeCoursesMap[courseKey] && activeCoursesMap[courseKey].grade === "F") {
@@ -499,7 +537,7 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
         const isElective = catCourse ? catCourse.type === "اختياري" : false;
         const isProject = (c.code === "CS 498" || c.code === "CS 499");
 
-        if (c.grade !== "F") {
+        if (c.grade !== "F" && !skipEarnedForPriorRetake) {
           grandEarnedHours += c.credits;
           if (isElective) electiveEarned += c.credits;
           else if (isProject) projectEarned += c.credits;
@@ -525,6 +563,8 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
         grandTotalPoints += (pHours * pGpa);
         grandEarnedHours += pHours;
         compulsoryEarned += pHours;
+        grandAttemptedHours -= priorRetakeAdjHours;
+        grandTotalPoints -= priorRetakeAdjPoints;
       }
 
       const overallCgpa = grandAttemptedHours > 0 ? (grandTotalPoints / grandAttemptedHours) : 0.00;
@@ -1367,7 +1407,7 @@ function calculateHistoricalSummaryUpTo(targetBatch) {
     // فحص هل الطالب بحاجة لتحديد مقرراته السابقة إجبارياً
     function getConfirmedPastBatches() { try { const v = JSON.parse(localStorage.getItem("hti_past_confirmed_batches") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function setConfirmedPastBatches(arr) { try { localStorage.setItem("hti_past_confirmed_batches", JSON.stringify(arr)); } catch (e) {} }
-    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); let confirmed = getConfirmedPastBatches(); if (confirmed.length === 0 && hasConfiguredPastCourses) { confirmed = ALL_BATCHES.slice(0, batchIdx); setConfirmedPastBatches(confirmed); } let allConfirmed = true; for (let i = 0; i < batchIdx; i++) { if (confirmed.indexOf(ALL_BATCHES[i]) === -1) { allConfirmed = false; break; } } if (allConfirmed) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
+    function checkPastCoursesRequirementV2() { const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى"; if (batch === "الفرقة الأولى") { return; } const batchIdx = ALL_BATCHES.indexOf(batch); let confirmed = getConfirmedPastBatches(); if (confirmed.length === 0 && hasConfiguredPastCourses) { let migHi = -1; for (let i = 0; i < batchIdx; i++) { const mb = ALL_BATCHES[i]; if (allYearsCourses[mb] && SEMESTER_CONFIGS.some(function(s) { return (allYearsCourses[mb][s.id] || []).length > 0; })) { migHi = i; } } if (migHi >= 0) { confirmed = ALL_BATCHES.slice(0, migHi + 1); setConfirmedPastBatches(confirmed); } } let allConfirmed = true; for (let i = 0; i < batchIdx; i++) { if (confirmed.indexOf(ALL_BATCHES[i]) === -1) { allConfirmed = false; break; } } if (allConfirmed) { hasConfiguredPastCourses = true; return; } hasConfiguredPastCourses = false; setTimeout(function() { showToast("📋 يرجى تحديد المقررات السابقة التي اجتزتها قبل المتابعة", true); openPastCoursesModal(false); }, 300); }
 function checkPastCoursesRequirement() {
   return checkPastCoursesRequirementV2();
       const batch = document.getElementById("displayStudentBatch")?.innerText || "الفرقة الأولى";
